@@ -1,0 +1,66 @@
+#ifndef COCOTTE_MODELS_NODE_H
+#define COCOTTE_MODELS_NODE_H
+
+
+#include <vector>
+#include <boost/shared_ptr.hpp>
+#include <boost/serialization/base_object.hpp>
+#include <boost/serialization/shared_ptr.hpp>
+#include <boost/serialization/vector.hpp>
+#include <cocotte/datatypes.h>
+#include <cocotte/approximators/form.h>
+#include <cocotte/models/model.h>
+
+
+
+namespace Cocotte {
+namespace Models {
+
+
+
+class Node : public Model
+{
+
+private:
+
+    std::vector<Approximators::Form> forms;
+    int nbPoints;
+    boost::shared_ptr<Model> model0;
+    boost::shared_ptr<Model> model1;
+    bool temporary;
+
+
+public:
+
+    Node() = default;
+    Node(boost::shared_ptr<Model> model0, boost::shared_ptr<Model> model1, bool temporary = false);
+    virtual bool isLeaf() const override;
+    virtual bool isTemporary() const override;
+    virtual int getNbPoints() const override;
+    virtual std::vector<Approximators::Form> const& getForms() override;
+    void setForms(std::vector<Approximators::Form> const& forms);
+
+    boost::shared_ptr<Model> getModel0() const;
+    boost::shared_ptr<Model> getModel1() const;
+
+    // Serialization
+    template<typename Archive>
+    friend void serialize(Archive& archive, Node& node, const unsigned int version)
+    {
+        archive & boost::serialization::base_object<Model>(node);
+        archive & node.forms;
+        archive & node.nbPoints;
+        archive & node.model0;
+        archive & node.model1;
+        archive & node.temporary;
+    }
+
+};
+
+
+
+}}
+
+
+
+#endif
