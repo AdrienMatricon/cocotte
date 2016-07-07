@@ -27,7 +27,6 @@ using Cocotte::Approximators::Polynomial;
 using Cocotte::Learner;
 
 #include <soplex/src/soplex.h>
-#include <simulation/simulation_function.hpp>
 
 
 vector<vector<size_t>> computeErrors(vector<vector<vector<double>>> const& estimations,
