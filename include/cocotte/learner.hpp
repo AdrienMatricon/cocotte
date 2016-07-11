@@ -17,7 +17,6 @@ using boost::shared_ptr;
 using boost::archive::text_iarchive;
 #include<boost/archive/text_oarchive.hpp>
 using boost::archive::text_oarchive;
-#include <opencv2/ml/ml.hpp>
 #include <cocotte/datatypes.h>
 using Cocotte::DataPoint;
 #include <cocotte/models/models.hh>

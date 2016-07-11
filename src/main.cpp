@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    cerr << "Usage: cocotte learn <training data file> <data structure file> <nb points for training> <output file for models> [output file for intermediary models]" << endl;
+    cerr << "Usage: cocotte learn <training data file> <data structure file> <nb points for training> <output file for models> [other output files for models]" << endl;
     cerr << "Usage: cocotte test <models data file> <test data file> <data structure file> <output file> [nb points to predict=10000]" << endl;
     cerr << "Usage: cocotte evaluate <input data file> <data structure file> <nb points for testing> <outputFile> <models data file> [other models data file]" << endl;
     return 1;
