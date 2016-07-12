@@ -162,7 +162,7 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(int d) const
 }
 
 
-// Same but with also combinations d-1 used dimensions and an unused one
+// Same but also with combinations of d-1 used dimensions and an unused one
 list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(int d) const
 {
     if ( (d-1) > nbUsed )
@@ -178,21 +178,18 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(int d) const
 
     auto result = getCombinationsFromUsed(d);
     auto const partialResult = getCombinationsFromUsed(d-1);
-    auto const pRBegin = partialResult.begin(), pREnd = partialResult.end();
-
     auto const complement = unusedDimensionsIds();
 
 
     for (auto& dim : complement)
     {
-        auto it = result.insert(result.end(), pRBegin, pREnd);
-        auto const rEnd = result.end();
-        for (; it != rEnd; ++it)
+        auto pR = partialResult;
+        for (auto& comb : pR)
         {
-            it->addDimension(dim);
+            comb.addDimension(dim);
         }
+        result.insert(result.end(), pR.begin(), pR.end());
     }
-
 
     return result;
 }

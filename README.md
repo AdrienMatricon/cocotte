@@ -64,7 +64,7 @@ Download Soplex's source code archive from http://soplex.zib.de/#download, extra
 Now to compile the library:
 ```sh
 # In maindirectory/thirdparty/soplex
-$ make COMP=gnu OPT=opt ZLIB=false
+$ make COMP=gnu OPT=opt ZLIB=false GMP=false
 ```
 There should now be a file `maindirectory/thirdparty/soplex/lib/libsoplex.a`
 
@@ -96,7 +96,7 @@ The executable generated from the code on this repository can be called in 3 way
 - `cocotte test` uses this file to predict outputs from a test dataset,
 - `cocotte evaluate` produces an evaluation of one or more models over a test dataset
 
-#### `cocotte learn`
+#### cocotte learn
 Here is an example of `cocotte learn` call:
 ```sh
 # cocotte learn <training data file> <data structure file> <nb points for training>
@@ -145,7 +145,7 @@ Note that those dimensions must have an associated precision.
 - if similar lines are added after the last one, COCOTTE is run independently on each `t` defined by one such line.
 Please note that any given column of the data can only exclusively be  in `x` or in one `t`.
 
-#### `cocotte test`
+#### cocotte test
 Here is an example of `cocotte test` call:
 ```sh
 # cocotte test <models data file> <test data file> <data structure file> <output file> [nb points to predict=10000]
@@ -157,7 +157,7 @@ $ cocotte test models.txt test.csv structure.txt output.csv 10000
 - `output.csv` is a CSV file in which to dump `x` as well as the real and predicted `t` values for each test point,
 - `10000` is the number of test points (that is to say, the number of lines read in `test.csv`).
 
-#### `cocotte evaluate`
+#### cocotte evaluate
 Here is an example of `cocotte evaluate` call:
 ```sh
 # cocotte evaluate <input data file> <data structure file> <nb points for testing> <outputFile>
@@ -228,4 +228,12 @@ and use your class as a template argument for `Cocotte::Learner`.
 > If you want to replace part of COCOTTE's implementation but find that COCOTTE is not modular
 > enough to allow you to do that simply, don't hesitate to send me a message/raise an issue
 > and I'll see if I can add some more modularity.
+
+
+
+
+
+
+
+
 
