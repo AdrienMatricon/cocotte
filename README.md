@@ -43,6 +43,13 @@ While the [Boost Software License][boost-license] and [BSD license][opencv-licen
 > Please check that you are reading this on the latest version of the README and that I have not found one yet, though.
 
 ## Installing COCOTTE
+#### Getting the files
+Clone the repository, and if necessary switch to the version of COCOTTE you want to be working with using
+```sh
+# example: git checkout -b master 2016-icdl-epirob
+$ git checkout -b [branchname] [tagname]
+```
+
 #### Boost
 This code was developed under Boost 1.54 and uses `boost::serialization` to dump models.
 It also uses `boost::shared_ptr` because `std::shared_ptr` is not compatible with `boost::serialization`.
@@ -57,9 +64,8 @@ $ sudo apt-get install libopencv-dev
 #### Soplex
 This code wad developed under Soplex 2.2.0.
 
-After cloning the COCOTTE repository, create a folder `thirdparty` in the main directory
-(which we will assume is called `maindirectory` here,
-but is probably called `cocotte` if you simply cloned the repository).
+Create a folder `thirdparty` in the repository's main directory
+(which we will assume is called `maindirectory` here, but is probably called `cocotte` if you did not rename it).
 Download Soplex's source code archive from http://soplex.zib.de/#download, extract the folder it contains into `maindirectory/thirdparty`, and rename it `soplex`.
 Now to compile the library:
 ```sh
@@ -229,11 +235,14 @@ and use your class as a template argument for `Cocotte::Learner`.
 > enough to allow you to do that simply, don't hesitate to send me a message/raise an issue
 > and I'll see if I can add some more modularity.
 
+## Simulation data
+The data I used in my paper was generated with the simulation environment that I got from people at ISIR.
+While I won't put their code here, I uploaded the [data I used][data],
+which consists in a [training data file][training], a [test data file][test], and [data structure file][structure].
 
-
-
-
-
-
+[data]:https://github.com/AdrienMatricon/data/tree/master/2016-07-12---simulation-data-for-cocotte
+[training]:https://raw.githubusercontent.com/AdrienMatricon/data/master/2016-07-12---simulation-data-for-cocotte/training.csv
+[test]:https://github.com/AdrienMatricon/data/raw/master/2016-07-12---simulation-data-for-cocotte/test.csv
+[structure]:https://raw.githubusercontent.com/AdrienMatricon/data/master/2016-07-12---simulation-data-for-cocotte/structure.txt
 
 
