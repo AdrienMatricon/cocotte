@@ -59,6 +59,103 @@ vector<vector<size_t>> computeErrors(vector<vector<vector<double>>> const& estim
 }
 
 
+void dumpEstimates(string fileName,
+                   vector<string> inputNames,
+                   vector<vector<string>> outputNames,
+                   vector<vector<double>> const& x,
+                   vector<vector<vector<double>>> const& estimates,
+                   vector<vector<vector<double>>> const& actual = vector<vector<vector<double>>>(0),
+                   vector<vector<int>> const& modelIDs = vector<vector<int>>(0))
+{
+    ofstream outputFile(fileName);
+    if (!outputFile.is_open())
+    {
+        cerr << "Failed to open file" << endl;
+        exit(1);
+    }
+
+
+    size_t const nbInputs = inputNames.size();
+    size_t const nbOutputs = outputNames.size();
+    size_t const nbDataPoints = x.size();
+    bool const knownActual = (actual.size() > 0);
+    bool const dumpModelIDs = (modelIDs.size() > 0);
+
+    outputFile << inputNames[0];
+    for (size_t i = 1; i < nbInputs; ++i)
+    {
+        outputFile << ", " << inputNames[i];
+    }
+
+    for (auto& out : outputNames)
+    {
+        for (auto& name : out)
+        {
+            outputFile << ", " << name;
+        }
+    }
+
+    if (knownActual)
+    {
+        for (auto& out : outputNames)
+        {
+            for (auto& name : out)
+            {
+                outputFile << ", " << name << "_actual";
+            }
+        }
+    }
+
+    if (dumpModelIDs)
+    {
+        for (size_t i = 0; i < nbOutputs; ++i)
+        {
+            outputFile << ", output" << i << "_mID";
+        }
+    }
+
+    outputFile << endl;
+
+    for (size_t i = 0; i < nbDataPoints; ++i)
+    {
+        outputFile << x[i][0];
+        for (size_t j = 1; j < nbInputs; ++j)
+        {
+            outputFile << ", " << x[i][j];
+        }
+
+        for (auto& out : estimates[i])
+        {
+            for (auto& est : out)
+            {
+                outputFile << ", " << est;
+            }
+        }
+
+        if (knownActual)
+        {
+            for (auto& out : actual[i])
+            {
+                for (auto& act : out)
+                {
+                    outputFile << ", " << act;
+                }
+            }
+        }
+
+        if (dumpModelIDs)
+        {
+            for (auto& mID : modelIDs)
+            {
+                outputFile << ", " << mID[i];
+            }
+        }
+
+        outputFile << endl;
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
     if (argc > 1)
@@ -140,7 +237,7 @@ int main(int argc, char *argv[])
                 vector<vector<int>> modelIDs;
                 auto estimates = learner.predict(points.first, &modelIDs);
                 cout << "Outputs predicted. Dumping data... "; cout.flush();
-                learner.dumpEstimates(outputFile, points.first, estimates, points.second.first, modelIDs);
+                dumpEstimates(outputFile, learner.getInputNames(), learner.getOutputNames(), points.first, estimates, points.second.first, modelIDs);
                 cout << "done." << endl;
                 return 0;
             }

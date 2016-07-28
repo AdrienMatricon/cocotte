@@ -54,6 +54,7 @@ $ git checkout -b [branchname] [tagname]
 #### Boost
 This code was developed under Boost 1.54 and uses `boost::serialization` to dump models.
 It also uses `boost::shared_ptr` because `std::shared_ptr` is not compatible with `boost::serialization`
+(at least in this version of the Boost library)
 and `boost::unordered_set` because `std::unordered_set` is not compatible with `boost::shared_ptr`.
 ```sh
 $ sudo apt-get install libboost-all-dev
@@ -206,9 +207,9 @@ Those names are given as vectors, with the same structure as in `Cocotte::DataPo
 
 ##### Adding training points (alternatives)
 - `addDataPointIncremental()` and `addDataPointsIncremental()` do three things successively:
-    1. they call `restructureModels()`,
-    2. they add new points as if by `addDataPoint()` or `addDataPoints()`,
-    3. they call `removeArtifacts()`.
+    * they call `restructureModels()`,
+    * they add new points as if by `addDataPoint()` or `addDataPoints()`,
+    * they call `removeArtifacts()`.
 - `addDataPointToExistingModels()` and `addDataPointsToExistingModels()` are allow you to delay computation:
     * when called, the new training datapoints are used to refine existing models rather than improving the model collection as a whole, which is much faster,
     * calling `restructureModels()` leaves `Cocotte::Learner` in the same state as if all datapoints were just added with `addDataPoints()`.

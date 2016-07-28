@@ -74,20 +74,6 @@ public:
                                                           std::vector<std::vector<int>> *modelIDs = nullptr);
     std::vector<std::vector<std::vector<double>>> predict(std::vector<std::vector<double>> const& x, std::vector<std::vector<int>> *modelIDs);
 
-    // Dumps data in a file
-    void dumpEstimates(std::string fileName,
-                       std::vector<std::vector<double>> const& x,
-                       std::vector<std::vector<std::vector<double>>> const& estimates,
-                       std::vector<std::vector<std::vector<double>>> const& actual = std::vector<std::vector<std::vector<double>>>(0),
-                       std::vector<std::vector<int>> const& modelIDs = std::vector<std::vector<int>>(0));
-    void predictAndDump(std::vector<std::vector<double>> const& x,
-                        std::string fileName,
-                        bool dumpModelIDs = false);
-    void predictAndDump(std::vector<std::vector<double>> const& x,
-                        std::vector<std::vector<std::vector<double>>> const& actual,
-                        std::string fileName,
-                        bool dumpModelIDs = false);
-
 
     template<typename Archive>
     friend void serialize(Archive& archive, Learner<ApproximatorType>& learner, const unsigned int version)

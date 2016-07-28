@@ -293,7 +293,7 @@ vector<int> ModelList<ApproximatorType>::selectModels(vector<vector<double>> con
 
 
 template <typename ApproximatorType>
-vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double>> const& points, bool dumpModelIDs, vector<int> *modelIDs)
+vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double>> const& points, bool fillModelIDs, vector<int> *modelIDs)
 {
     size_t const nbPoints = points.size();
     vector<vector<vector<double>>> possibleValues;
@@ -312,7 +312,7 @@ vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double
     }
 
     vector<int> const selected = selectModels(points);
-    if (dumpModelIDs)
+    if (fillModelIDs)
     {
         *modelIDs = selected;
     }

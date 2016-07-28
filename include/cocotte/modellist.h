@@ -84,7 +84,7 @@ public:
     void trainClassifier();
     std::vector<int> selectModels(std::vector<std::vector<double>> const& points);
     std::vector<std::vector<double>> predict(std::vector<std::vector<double>> const& points,
-                                             bool dumpModelIDs = false,
+                                             bool fillModelIDs = false,
                                              std::vector<int> *modelIDs = nullptr);
     std::vector<std::vector<double>> predict(std::vector<std::vector<double>> const& points, std::vector<int> *modelIDs);
 
