@@ -34,7 +34,8 @@ While the [Boost Software License][boost-license] and [BSD license][opencv-licen
 > they are also mostly optimized to solve one big linear program instead of repeatedly solving small ones as we do here,
 > and they tend to return error codes ("not singular" for Soplex and "numerical difficulties" for GLPK)
 > when an optimal solution could be found. As they do not seem to return error codes on the same problems,
-> I am currently using mostly Soplex, and calling GLPK when it fails, which is ugly.
+> I am currently using mostly Soplex, and calling GLPK when it fails, which is ugly
+> (and to make things worse, Soplex prints error messages when it fails).
 
 > If you happen to know a reliable Linear Program solving library that I could use instead of Soplex and GLPK,
 > please send me a message (especially if it is under a non-restrictive license like BSD),
@@ -52,7 +53,8 @@ $ git checkout -b [branchname] [tagname]
 
 #### Boost
 This code was developed under Boost 1.54 and uses `boost::serialization` to dump models.
-It also uses `boost::shared_ptr` because `std::shared_ptr` is not compatible with `boost::serialization`.
+It also uses `boost::shared_ptr` because `std::shared_ptr` is not compatible with `boost::serialization`
+and `boost::unordered_set` because `std::unordered_set` is not compatible with `boost::shared_ptr`.
 ```sh
 $ sudo apt-get install libboost-all-dev
 ```
@@ -107,7 +109,7 @@ Here is an example of `cocotte learn` call:
 ```sh
 # cocotte learn <training data file> <data structure file> <nb points for training>
 # <output file for models> [other output files for models]
-$ cocotte learn data.csv structure.txt 300 models 0.txt models 1.txt models 2.txt
+$ cocotte learn data.csv structure.txt 300 models 0.txt models 1.txt models 2.txt 2> /dev/null
 ```
 - `data.csv` is a CSV file containing the training data,
 - `structure.txt` is a file containing information about the structure of the data (see below),
@@ -115,11 +117,8 @@ $ cocotte learn data.csv structure.txt 300 models 0.txt models 1.txt models 2.tx
 - `models 0.txt models 1.txt models 2.txt` are files in which models will be dumped.
 When there is only one file, all training points are processed by COCOTTE at once before dumping the learned models.
 When there is more than one file, training points are divided into batches of roughly equal size and given
-batch by batch to COCOTTE, so that intermediate models can be learned and dumped.
-
-> As of now, the incremental version of COCOTTE is still buggy
-> (it does not always return the same final models depending on the number of intermediate models),
-> so we recommend only using one file.
+batch by batch to COCOTTE, so that intermediate models can be learned and dumped,
+- adding `2> /dev/null` at the end is recommended because Soplex outputs error messages when it fails (which is often).
 
 > Please note that this implementation is memory based (which should be useful for future works):
 > training datapoints are stored internally, and are dumped with the models.
@@ -199,22 +198,20 @@ Please look at `maindirectory/src/main.cpp` for an example of how it is used.
 Those names are given as vectors, with the same structure as in `Cocotte::DataPoint`.
 - Models can be dumped with `dumpModels()`.
 - The other constructor reconstructs it from the dumped file.
-##### Adding training points
+
+##### Adding training points (basic)
 - Training points can be added in any order with `addDataPoint()` and `addDataPoints()`.
 - After adding all training datapoints, call `removeArtifacts()` to eliminate the artifacts of the merging phase.
 - Changes made by `removeArtifacts()` can be rolled back by `restructureModels()`.
 
-##### Various ways to add training points
-- `addDataPointToExistingModels()` and `addDataPointsToExistingModels()` uses new training datapoints to refine existing models rather than improving the model collection as a whole (which is faster).
-> Please note that `restructureModels()` actually leaves `Cocotte::Learner` in the same state as if all datapoints
-> were just added with `addDataPoints()`. As such, `addDataPointsToExistingModels()` can be seen as a way
-> to delay computation.
-- `addDataPointIncremental()` and `addDataPointsIncremental()` behave
-as if they called `restructureModels()` then  `addDataPoints()`.
-
-> As of now, the incremental version of COCOTTE is still buggy
-> (it does not always return the same final models depending on the order in which the points are added),
-> so we recommend adding all points at once with addDataPoints().
+##### Adding training points (alternatives)
+- `addDataPointIncremental()` and `addDataPointsIncremental()` do three things successively:
+    1. they call `restructureModels()`,
+    2. they add new points as if by `addDataPoint()` or `addDataPoints()`,
+    3. they call `removeArtifacts()`.
+- `addDataPointToExistingModels()` and `addDataPointsToExistingModels()` are allow you to delay computation:
+    * when called, the new training datapoints are used to refine existing models rather than improving the model collection as a whole, which is much faster,
+    * calling `restructureModels()` leaves `Cocotte::Learner` in the same state as if all datapoints were just added with `addDataPoints()`.
 
 ##### Prediction
 The `predict()` function estimates the "outputs" (i.e. `t`) from the "inputs" (i.e. `x`).
@@ -231,7 +228,7 @@ using `Cocotte::Approximators::Polynomial` as an example,
 and use your class as a template argument for `Cocotte::Learner`.
 
 
-> If you want to replace part of COCOTTE's implementation but find that COCOTTE is not modular
+> If you want to rewrite part of COCOTTE's implementation but find that COCOTTE is not modular
 > enough to allow you to do that simply, don't hesitate to send me a message/raise an issue
 > and I'll see if I can add some more modularity.
 
@@ -244,5 +241,6 @@ which consists in a [training data file][training], a [test data file][test], an
 [training]:https://raw.githubusercontent.com/AdrienMatricon/data/master/2016-07-12---simulation-data-for-cocotte/training.csv
 [test]:https://github.com/AdrienMatricon/data/raw/master/2016-07-12---simulation-data-for-cocotte/test.csv
 [structure]:https://raw.githubusercontent.com/AdrienMatricon/data/master/2016-07-12---simulation-data-for-cocotte/structure.txt
+
 
 

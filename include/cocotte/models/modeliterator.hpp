@@ -183,32 +183,6 @@ IteratorType pointsEnd(boost::shared_ptr<ModelType> pModel)
 
 
 template<typename ModelType,
-         typename IteratorType = typename std::conditional<std::is_const<ModelType>::value, ModelConstIterator, ModelIterator>::type,
-         typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-pair<double, IteratorType> getClosest(DataPoint const& point, shared_ptr<ModelType> pModel, int outputID)
-{
-    auto const mBegin = pointsBegin(pModel), mEnd = pointsEnd(pModel);
-    auto mIt = mBegin;
-
-    IteratorType best = mIt;
-    double dist = distanceBetweenDataPoints(point, *best, outputID);
-
-    for (++mIt; mIt != mEnd; ++mIt)
-    {
-        double const temp = distanceBetweenDataPoints(point, *mIt, outputID);
-
-        if (temp < dist)
-        {
-            dist = temp;
-            best = mIt;
-        }
-    }
-
-    return pair<double, IteratorType>(dist, best);
-}
-
-
-template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
 double getDistance(shared_ptr<ModelType> pModel0, shared_ptr<ModelType> pModel1, int outputID)
 {

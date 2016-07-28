@@ -30,10 +30,10 @@ private:
     // - each node contains a form of the approximator that explains all points under it
     std::list<boost::shared_ptr<Models::Model>> models;
 
-    int outputID;           // ID of the output in the DataPoint
-    int nbInputDims;        // number of dimensions in the input
-    int nbOutputDims;       // number of dimensions in the output
-    int nbModels = 0;
+    size_t outputID;            // ID of the output in the DataPoint
+    size_t nbInputDims;         // number of dimensions in the input
+    size_t nbOutputDims;        // number of dimensions in the output
+    size_t nbModels = 0;
 
     cv::RandomTrees classifier;
     bool trainedClassifier = false;
@@ -66,35 +66,18 @@ public:
     boost::shared_ptr<Models::Model> firstModel();
     void removeFirstModel();
 
-    // Tries to merge two models into one without increasing complexity
-    // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
-    boost::shared_ptr<Models::Model> tryMerge(boost::shared_ptr<Models::Model> model0, boost::shared_ptr<Models::Model> model1, bool markAsTemporary = false);
-
-    // Takes a new leaf L as well as a pair (distance,iterator) to the closest leaf CL in a given existing model M
-    // This function searches for the smallest submodel S containing CL of M such that:
-    //  1) distance(L,S) <= distance(L, M\S)
-    //  2) distance(L,S) <= distance(S, M\S)
-    // then tries to merge L and S and returns if it succeeded
-    // In case of success, the new model is added to the model list,
-    // all predecessors of S are destroyed, and the other branches (submodels) are added to the model list
-    bool tryToInsertLeafIn(boost::shared_ptr<Models::Model> leaf, std::pair<double, Models::ModelIterator> distAndBranch);
-
-    // Tries all merges between models in the model list, starting with the closest ones
-    void doAllPossibleMerges();
-
-    // Creates leaves for the new points, tries to add them to existing models
-    // with tryToInsertLeafIn(), and creates new models if necessary
+    // Creates leaves for the new points and merges them with models or submodels,
+    // starting with the closest ones. We expect to get the same result
+    // when adding points one by one, in batches, or all at once.
     void addPoint(boost::shared_ptr<DataPoint const> pointAddress);
     void addPoints(std::vector<boost::shared_ptr<DataPoint const>> const& pointAddresses);
 
     // Creates a leaf for a new point and tries to merge it with an already existing model,
-    // without care for the notion of proximity maintained by tryToInsertLeafIn()
-    // Models so created are marked as temporary
+    // Models created in this way are marked as temporary
     // Returns true if it succeeded, false if a new model was created
     bool tryAddingPointToExistingModels(boost::shared_ptr<DataPoint const> pointAddress);
 
-    // Removes temporary models, adds the submodels to the list then calls doAllPossibleMerges()
-    // Restores the notion of proximity maintained by tryToInsertLeafIn()
+    // Removes temporary models and add all points in temporary leaves with addPoints()
     void restructureModels();
 
     // Predict the value of a point
@@ -107,6 +90,23 @@ public:
 
     // Returns a string that details the forms in the list
     std::string toString(std::vector<std::string> inputNames, std::vector<std::string> outputNames) const;
+
+private:
+
+    // Tries to merge two models into one without increasing complexity
+    // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+    boost::shared_ptr<Models::Model> tryMerge(boost::shared_ptr<Models::Model> model0, boost::shared_ptr<Models::Model> model1, bool markAsTemporary = false);
+
+    // Merges the models with each other, starting with the closest ones:
+    // - atomicModels is a list of leaves, or more generally of models that are supposed correctly merged
+    // - independentlyMergedModels is a list of models resulting from previous merges
+    //   => Those merges may be rolled back because of the new models in atomicModels.
+    //      We expect to get the same result with independentlyMergedModels or with the
+    //      list of every leaf in independentlyMergedModels
+    std::list<boost::shared_ptr<Models::Model>> mergeAsMuchAsPossible(std::list<boost::shared_ptr<Models::Model>>&& atomicModels,
+                                                                      std::list<boost::shared_ptr<Models::Model>>&& independentlyMergedModels,
+                                                                      bool markMergesAsTemporary = false);
+
 
     // Serialization
     template<typename Archive>

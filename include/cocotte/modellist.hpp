@@ -1,12 +1,18 @@
 
-#include <cmath>
+#include <algorithm>
 using std::min;
+using std::max;
 #include <list>
 using std::list;
 #include <vector>
 using std::vector;
+#include <set>
+using std::set;
+#include <boost/unordered_set.hpp>
+using boost::unordered_set;
 #include <utility>
 using std::pair;
+using std::make_pair;
 #include <boost/shared_ptr.hpp>
 using boost::shared_ptr;
 using boost::static_pointer_cast;
@@ -112,348 +118,13 @@ void ModelList<ApproximatorType>::removeFirstModel()
 
 
 
-// Tries to merge two models into one without increasing complexity
-// Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
-template <typename ApproximatorType>
-shared_ptr<Model> ModelList<ApproximatorType>::tryMerge(shared_ptr<Model> model0, shared_ptr<Model> model1, bool markAsTemporary)
-{
-    // We determine if new node should be temporary
-    markAsTemporary = (markAsTemporary || model0->isTemporary() || model1->isTemporary());
-
-    shared_ptr<Model> node (new Node(model0, model1, markAsTemporary));
-    int const nbPoints = node->getNbPoints();
-    auto const mBegin = Models::pointsBegin(const_pointer_cast<Model const>(node));
-    auto const mEnd = Models::pointsEnd(const_pointer_cast<Model const>(node));
-
-    vector<Form> forms0 = model0->getForms(), forms1 = model1->getForms();
-    vector<Form> newForms;
-
-    for (int dim = 0; dim < nbOutputDims; ++dim)
-    {
-        Form const form0 = forms0[dim], form1 = forms1[dim];
-        UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
-
-        bool success = false;
-        Form newForm;
-
-        // We check that a merge is possible
-        {
-            // We list the most complex forms available
-            list<list<Form>> possibleForms = approximator.getMostComplexForms(availableDimensions, form0.complexity + form1.complexity);
-
-            for (auto& someForms : possibleForms)
-            {
-                for (auto& form : someForms)
-                {
-                    // For each form, we try to fit all points
-                    if (approximator.tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
-                    {
-                        success = true;
-                        newForm = form;
-                        break;
-                    }
-                }
-
-                if (success)
-                {
-                    break;
-                }
-            }
-        }
-
-        if (!success)
-        {
-            // We did not succeed, so we return a default-constructed shared_ptr
-            return shared_ptr<Model>();
-        }
-
-        // Otherwise, if we succeeded, we try to find the best form
-        int minSuccess = newForm.complexity;
-        int maxFail = min(form0.complexity, form1.complexity) - 1;  // Sure to fail
-
-        while (maxFail != minSuccess - 1)
-        {
-            int middle = (maxFail + minSuccess) / 2;
-            list<list<Form>> possibleForms = approximator.getMostComplexForms(availableDimensions, middle);
-
-            success = false;
-
-            for (auto& someForms : possibleForms)
-            {
-                for (auto& form : someForms)
-                {
-                    // For each form, we try to fit all points
-                    if (approximator.tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
-                    {
-                        success = true;
-                        newForm = form;
-                        minSuccess = newForm.complexity;
-                        break;
-                    }
-                }
-
-                if (success)
-                {
-                    break;
-                }
-            }
-
-            if (!success)
-            {
-                maxFail = middle;
-            }
-        }
-
-        newForms.push_back(newForm);
-    }
-
-    static_pointer_cast<Node>(node)->setForms(newForms);
-    return node;
-}
-
-
-
-// Takes a new leaf L as well as a pair (distance,iterator) to the closest leaf CL in a given existing model M
-// This function searches for the smallest submodel S containing CL of M such that:
-//  1) distance(L,S) <= distance(L, M\S)
-//  2) distance(L,S) <= distance(S, M\S)
-// then tries to merge L and S and returns if it succeeded
-// In case of success, the new model is added to the model list,
-// all predecessors of S are destroyed, and the other branches (submodels) are added to the model list
-template <typename ApproximatorType>
-bool ModelList<ApproximatorType>::tryToInsertLeafIn(shared_ptr<Model> leaf, pair<double, ModelIterator> distAndBranch)
-{
-    double const dist = std::get<0>(distAndBranch);
-    list<shared_ptr<Model>> treeBranch = std::get<1>(distAndBranch).getTreeBranch();
-    shared_ptr<Model> closest = treeBranch.back();  // Closest Leaf to L in M
-    treeBranch.pop_back();
-
-    // We go up the tree - keeping 1) verified - until 2) is verified or S is M
-    if (!treeBranch.empty())
-    {
-        auto predecessor = static_pointer_cast<Node>(treeBranch.back());
-        // Because of how the tree was made, distance(S, M\S) can be computed locally
-        while(Models::getDistance(predecessor->getModel0(), predecessor->getModel1(), outputID) < dist)
-        {
-            closest = treeBranch.back();
-            treeBranch.pop_back();
-            if (treeBranch.empty())
-            {
-                // S is M
-                break;
-            }
-
-            predecessor = static_pointer_cast<Node>(treeBranch.back());
-        }
-    }
-
-    // Then we try merging
-    shared_ptr<Model> newModel = tryMerge(closest, leaf);
-
-    // If the merge fails, the insertion did not succeed
-    // Otherwise, we need to insert things in the model list
-    if (!newModel)
-    {
-        return false;
-    }
-
-    if (treeBranch.empty())
-    {
-        // If S is M, we replace the old model by the new one
-        for (auto& model:models)
-        {
-            if (model.get() == closest.get())
-            {
-                model = newModel;
-            }
-        }
-    }
-    else
-    {
-        // Otherwise, we also replace the old model by the new one
-        {
-            auto const top = treeBranch.front();
-            for (auto& model:models)
-            {
-                if (model.get() == top.get())
-                {
-                    model = newModel;
-                }
-            }
-        }
-
-        // But we add all orphan submodels in the model list as well
-        {
-            auto currentPointer = closest.get();
-            auto predecessor = static_pointer_cast<Node>(treeBranch.back());
-            auto model0 = predecessor->getModel0();
-
-            treeBranch.pop_back();
-
-            if (model0.get() == currentPointer)
-            {
-                addModel(predecessor->getModel1());
-            }
-            else
-            {
-                addModel(model0);
-            }
-
-            while (!treeBranch.empty())
-            {
-                currentPointer = predecessor.get();
-                predecessor = static_pointer_cast<Node>(treeBranch.back());
-                model0 = predecessor->getModel0();
-
-                treeBranch.pop_back();
-
-                if (model0.get() == currentPointer)
-                {
-                    addModel(predecessor->getModel1());
-                }
-                else
-                {
-                    addModel(model0);
-                }
-
-            }
-        }
-    }
-
-    return true;
-}
-
-
-
-// Tries all merges between models in the model list, starting with the closest ones
-template <typename ApproximatorType>
-void ModelList<ApproximatorType>::doAllPossibleMerges()
-{
-    using ModelPair = pair<shared_ptr<Model>, shared_ptr<Model>>;
-
-    vector<pair<double, ModelPair>> distanceQueue;
-    distanceQueue.reserve(nbModels*nbModels);
-
-    // We compute the distance between all pairs of models
-    for (auto const& model : models)
-    {
-        for (auto const& otherModel : models)
-        {
-            if (model.get() != otherModel.get())
-            {
-                distanceQueue.push_back(pair<double, ModelPair>(
-                                            Models::getDistance(model, otherModel, outputID),
-                                            ModelPair(model, otherModel)));
-            }
-        }
-    }
-
-    // We sort them out
-    sort(distanceQueue.begin(), distanceQueue.end(), pairCompareFirst<ModelPair>);
-
-    double const maxDist = std::get<0>(distanceQueue.back());   // biggest distance between two points
-    double const supDist = maxDist*2 + 0.01;                    // huge distance to assign to pairs that need to be removed
-    double const cutOff = maxDist*1.5 + 0.001;                  // cutoff between the two
-
-
-    // Starting with the closest pair, we try merging models
-    bool keepMerging = true;
-
-    while (keepMerging)
-    {
-        keepMerging = false;
-
-        for (auto& current : distanceQueue)
-        {
-            auto const& mPair = std::get<1>(current);
-            auto const& first = std::get<0>(mPair);
-            auto const& second = std::get<1>(mPair);
-
-            auto newModel = tryMerge(first, second);
-
-            if (newModel)
-            {
-                bool firstOccurrence = true;
-                // We insert the new model and remove the old ones
-                for (auto mIt = models.begin(), mEnd = models.end();
-                     mIt != mEnd; ++mIt)
-                {
-                    if ( (mIt->get() == first.get()) || (mIt->get() == second.get()))
-                    {
-                        if (firstOccurrence)
-                        {
-                            *mIt = newModel;
-                            firstOccurrence = false;
-                        }
-                        else
-                        {
-                            models.erase(mIt);
-                            --nbModels;
-                            break;
-                        }
-                    }
-                }
-
-                // To remove all pairs of candidate models including one that was just merged,
-                // we assign them to a high distance (above cutoff), sort the distance queue then truncate it
-                for (auto& d : distanceQueue)
-                {
-                    auto const& otherPair = std::get<1>(d);
-                    auto const& otherFirst = std::get<0>(otherPair);
-                    auto const& otherSecond = std::get<1>(otherPair);
-
-                    if ( (first.get() == otherFirst.get()) || (first.get() == otherSecond.get())
-                         || (second.get() == otherFirst.get()) || (second.get() == otherSecond.get()))
-                    {
-                        std::get<0>(d) = supDist;
-                    }
-                }
-
-                // Before sorting, we compute the distances from all models to the new one
-                // and add them to the distance queue
-                for (auto const& model : models)
-                {
-                    if (model.get() != newModel.get())
-                    {
-                        distanceQueue.push_back(pair<double, ModelPair>(
-                                                    Models::getDistance(model, newModel, outputID),
-                                                    ModelPair(model, newModel)));
-                    }
-                }
-
-                // We sort the distance queue and remove element over the cutOff
-                sort(distanceQueue.begin(), distanceQueue.end(), pairCompareFirst<ModelPair>);
-                for (auto dIt = distanceQueue.begin(), dEnd = distanceQueue.end();
-                     dIt != dEnd; ++dIt)
-                {
-                    if (std::get<0>(*dIt) > cutOff)
-                    {
-                        distanceQueue.erase(dIt, dEnd);
-                        break;
-                    }
-                }
-
-                keepMerging = true;
-                break;  // we modified the distance queue, so we go back to the closest pair
-            }
-            else
-            {
-                // If the merge failed, we assign the pair to a high distance (above cutoff),
-                // so that it is removed the next time the queue is sorted then truncated
-                std::get<0>(current) = supDist;
-            }
-        }
-    }
-}
-
-
-
-// Creates leaves for the new points, tries to add them to existing models
-// with tryToInsertLeafIn(), and creates new models if necessary
+// Creates leaves for the new points and merges them with models or submodels,
+// starting with the closest ones. We expect to get the same result
+// when adding points one by one, in batches, or all at once.
 template <typename ApproximatorType>
 void ModelList<ApproximatorType>::addPoint(boost::shared_ptr<DataPoint const> pointAddress)
 {
-    addPoints(vector<boost::shared_ptr<DataPoint const>>(1,pointAddress));
+    addPoints(vector<boost::shared_ptr<DataPoint const>>(1, pointAddress));
 }
 
 
@@ -462,107 +133,39 @@ void ModelList<ApproximatorType>::addPoints(vector<boost::shared_ptr<DataPoint c
 {
     trainedClassifier = false;
 
-    if (nbModels == 0)
+    list<shared_ptr<Model>> newLeaves;
+
+    for (auto const& pointAddress : pointAddresses)
     {
-        for (auto const& pointAddress : pointAddresses)
-        {
-            shared_ptr<Model> newLeaf = createLeaf(pointAddress);
-            addModel(newLeaf);
-        }
-    }
-    else
-    {
-        for (auto const& pointAddress : pointAddresses)
-        {
-            shared_ptr<Model> newLeaf = createLeaf(pointAddress);
-
-            // We compute the distances to all models
-            vector<pair<double, ModelIterator>> distancesAndModels;
-            distancesAndModels.reserve(nbModels);
-
-            DataPoint const& point = *pointAddress;
-            for (auto& model : models)
-            {
-                distancesAndModels.push_back(Models::getClosest(point, model, outputID));
-            }
-
-            // We look for the closest model that works
-            sort(distancesAndModels.begin(), distancesAndModels.end(), pairCompareFirst<ModelIterator>);
-
-            bool success = false;
-            for (auto const& currentPair : distancesAndModels)
-            {
-                success = tryToInsertLeafIn(newLeaf, currentPair);
-                if (success)
-                {
-                    break;
-                }
-            }
-
-            if (!success)
-            {
-                addModel(newLeaf);
-            }
-        }
+        newLeaves.push_back(createLeaf(pointAddress));
     }
 
-    // Then we try all merges between models in the model list
-    if (nbModels > 1)
-    {
-        doAllPossibleMerges();
-    }
+    models = std::move(mergeAsMuchAsPossible(std::move(newLeaves), std::move(models)));
+    nbModels = models.size();
 }
 
 
 
 // Creates a leaf for a new point and tries to merge it with an already existing model,
-// without care for the notion of proximity maintained by tryToInsertLeafIn()
-// Models so created are marked as temporary
+// Models created in this way are marked as temporary
 // Returns true if it succeeded, false if a new model was created
 template <typename ApproximatorType>
 bool ModelList<ApproximatorType>::tryAddingPointToExistingModels(boost::shared_ptr<DataPoint const> pointAddress)
 {
-    using ListIterator = list<boost::shared_ptr<Models::Model>>::iterator;
+    size_t const oldNbModels = nbModels;
 
     trainedClassifier = false;
-    shared_ptr<Model> newLeaf = createLeaf(pointAddress, true);
 
-    if (nbModels > 0)
-    {
-        // We compute the distances to all models
-        vector<pair<double, ListIterator>> distancesAndModels;
-        distancesAndModels.reserve(nbModels);
+    models.push_back(createLeaf(pointAddress, true));
+    models = std::move(mergeAsMuchAsPossible(std::move(models), list<shared_ptr<Model>>(), true));
+    nbModels = models.size();
 
-        for (auto mIt = models.begin(), mEnd = models.end(); mIt != mEnd; ++mIt)
-        {
-            double const dist = Models::getDistance(newLeaf, *mIt, outputID);
-            distancesAndModels.push_back(pair<double, ListIterator>(dist, mIt));
-        }
-
-        // We try the merge with the closest models first
-        sort(distancesAndModels.begin(), distancesAndModels.end(), pairCompareFirst<ListIterator>);
-
-        for (auto& currentPair : distancesAndModels)
-        {
-            auto newModel = tryMerge(newLeaf, *(currentPair.second), true);
-
-            if (newModel)
-            {
-                *(currentPair.second) = newModel;
-                doAllPossibleMerges();
-                return true;
-            }
-        }
-    }
-
-    addModel(newLeaf);
-    return false;
+    return (nbModels == oldNbModels);
 }
 
 
 
-// Removes temporary models, adds the submodels to the list then calls doAllPossibleMerges()
-// Restores the notion of proximity maintained by tryToInsertLeafIn()
+// Removes temporary models and add all points in temporary leaves with addPoints()
 template <typename ApproximatorType>
 void ModelList<ApproximatorType>::restructureModels()
 {
@@ -596,6 +199,9 @@ void ModelList<ApproximatorType>::restructureModels()
         {
             addModel(current);
         }
+
+        // End of the scope, current is destroyed.
+        // It was the last shared_ptr to this model, which is therefore destroyed.
     }
 
     addPoints(pointsInTemporaryLeaves);
@@ -713,10 +319,10 @@ vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double
 
     vector<vector<double>> t(nbPoints, vector<double>(nbOutputDims));
 
-    int i = 0;
+    size_t i = 0;
     for (auto const& k : selected)
     {
-        for (int j = 0; j < nbOutputDims; ++j)
+        for (size_t j = 0; j < nbOutputDims; ++j)
         {
             t[i][j] = possibleValues[k][j][i];
         }
@@ -747,7 +353,7 @@ string ModelList<ApproximatorType>::toString(vector<string> inputNames, vector<s
     {
         auto const forms = (*mIt)->getForms();
         result << "model " << k << ":" << endl;
-        for (int i = 0; i < nbOutputDims; ++i)
+        for (size_t i = 0; i < nbOutputDims; ++i)
         {
             result << outputNames[i] << ": " << approximator.formToString(forms[i], inputNames) << endl;
         }
@@ -758,7 +364,7 @@ string ModelList<ApproximatorType>::toString(vector<string> inputNames, vector<s
     {
         auto const forms = (*mIt)->getForms();
         result << "model " << k << ":" << endl;
-        for (int i = 0; i < nbOutputDims; ++i)
+        for (size_t i = 0; i < nbOutputDims; ++i)
         {
             result << outputNames[i] << ": " << approximator.formToString(forms[i], inputNames) << endl;
         }
@@ -767,6 +373,407 @@ string ModelList<ApproximatorType>::toString(vector<string> inputNames, vector<s
     return result.str();
 }
 
+
+
+// Tries to merge two models into one without increasing complexity
+// Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+template <typename ApproximatorType>
+shared_ptr<Model> ModelList<ApproximatorType>::tryMerge(shared_ptr<Model> model0, shared_ptr<Model> model1, bool markAsTemporary)
+{
+    // We determine if new node should be temporary
+    markAsTemporary = (markAsTemporary || model0->isTemporary() || model1->isTemporary());
+
+    shared_ptr<Model> node (new Node(model0, model1, markAsTemporary));
+    int const nbPoints = node->getNbPoints();
+    auto const mBegin = Models::pointsBegin(const_pointer_cast<Model const>(node));
+    auto const mEnd = Models::pointsEnd(const_pointer_cast<Model const>(node));
+
+    vector<Form> forms0 = model0->getForms(), forms1 = model1->getForms();
+    vector<Form> newForms;
+
+    for (size_t dim = 0; dim < nbOutputDims; ++dim)
+    {
+        Form const form0 = forms0[dim], form1 = forms1[dim];
+        UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
+
+        bool success = false;
+        Form newForm;
+
+        // We check that a merge is possible
+        {
+            // We list the most complex forms available
+            list<list<Form>> possibleForms = approximator.getMostComplexForms(availableDimensions, form0.complexity + form1.complexity);
+
+            for (auto& someForms : possibleForms)
+            {
+                for (auto& form : someForms)
+                {
+                    // For each form, we try to fit all points
+                    if (approximator.tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
+                    {
+                        success = true;
+                        newForm = form;
+                        break;
+                    }
+                }
+
+                if (success)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (!success)
+        {
+            // We did not succeed, so we return a default-constructed shared_ptr
+            return shared_ptr<Model>();
+        }
+
+        // Otherwise, if we succeeded, we try to find the best form
+        int minSuccess = newForm.complexity;
+        int maxFail = min(form0.complexity, form1.complexity) - 1;  // Sure to fail
+
+        while (maxFail != minSuccess - 1)
+        {
+            int middle = (maxFail + minSuccess) / 2;
+            list<list<Form>> possibleForms = approximator.getMostComplexForms(availableDimensions, middle);
+
+            success = false;
+
+            for (auto& someForms : possibleForms)
+            {
+                for (auto& form : someForms)
+                {
+                    // For each form, we try to fit all points
+                    if (approximator.tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
+                    {
+                        success = true;
+                        newForm = form;
+                        minSuccess = newForm.complexity;
+                        break;
+                    }
+                }
+
+                if (success)
+                {
+                    break;
+                }
+            }
+
+            if (!success)
+            {
+                maxFail = middle;
+            }
+        }
+
+        newForms.push_back(newForm);
+    }
+
+    static_pointer_cast<Node>(node)->setForms(newForms);
+    return node;
+}
+
+
+// Merges the models with each other, starting with the closest ones:
+// - atomicModels is a list of leaves, or more generally of models that are supposed correctly merged
+// - independentlyMergedModels is a list of models resulting from previous merges
+//   => Those merges may be rolled back because of the new models in atomicModels.
+//      We expect to get the same result with independentlyMergedModels or with the
+//      list of every leaf in independentlyMergedModels
+template <typename ApproximatorType>
+list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<shared_ptr<Model>>&& atomicModels,
+                                                                           list<shared_ptr<Model>>&& independentlyMergedModels,
+                                                                           bool markMergesAsTemporary)
+{
+    using ModelPair = pair<shared_ptr<Model>,shared_ptr<Model>>;
+
+    // Special cases
+    if (atomicModels.empty())
+    {
+        // If there is no new model to merge,
+        // all relevant merges were already done when the models were merged independently
+        return independentlyMergedModels;
+    }
+    else if(independentlyMergedModels.empty() && (atomicModels.size() == 1))
+    {
+        // If there is only one model and it is atomic, there is nothing to do
+        return atomicModels;
+    }
+
+    // We declare what we will need for handling all models
+    vector<pair<double,shared_ptr<Model>>> independentMergesInnerDistances;     // nodes in independently merged models
+    // and the distances between their children
+
+    set<shared_ptr<Model>> candidateModels;                                     // candidate models for the merging
+    unordered_set<shared_ptr<Model>> unavailable;                                    // models which have already been merged, or that have been rolled back
+    vector<pair<double, ModelPair>> candidateDistances;                         // candidate pairs of models, and the distances between them
+
+
+    // We determine all candidate models for the merging phase,
+    // and initialize candidateDistances as well as independentMergesInnerDistances
+    {
+        // First we consider distances between independently merged models (or their submodels)
+        // and atomic models, to see if we may need to roll back some merges
+        {
+            while (!independentlyMergedModels.empty())
+            {
+                auto const model = independentlyMergedModels.back();
+                independentlyMergedModels.pop_back();
+
+                bool mayBeUnmerged = false;
+
+                if (!model->isLeaf())
+                {
+                    auto const asNode = static_pointer_cast<Node>(model);
+                    auto const biggestInnerDistance = asNode->getBiggestInnerDistance(outputID);
+
+                    for (auto const& atomic : atomicModels)
+                    {
+                        // If the atomic models are closer to the model than some merged models were to each other,
+                        // we may need to roll back some merges
+                        if (Models::getDistance(model, atomic, outputID) < biggestInnerDistance)
+                        {
+                            auto const& child0 = asNode->getModel0();
+                            auto const& child1 = asNode->getModel1();
+
+                            mayBeUnmerged = true;
+                            double const innerDistance = Models::getDistance(child0, child1, outputID);
+                            independentMergesInnerDistances.push_back(make_pair(innerDistance, model));
+
+                            independentlyMergedModels.push_back(child0);
+                            independentlyMergedModels.push_back(child1);
+
+                            break;
+                        }
+                    }
+                }
+
+                // Otherwise (or if we reached a leaf), we add the model to the set of candidate models
+                if (!mayBeUnmerged)
+                {
+                    candidateModels.insert(model);
+                }
+
+            }
+        }
+
+
+        // Then we add atomic models to the candidate models
+        candidateModels.insert(atomicModels.begin(), atomicModels.end());
+        atomicModels.resize(0);
+
+
+        // Finally we compute all distances between candidate models
+        for (auto cIt = candidateModels.begin(), cEnd = candidateModels.end(); cIt != cEnd; ++cIt)
+        {
+
+            auto otherIt = cIt; ++otherIt;
+            for (; otherIt != cEnd; ++otherIt)
+            {
+                candidateDistances.push_back(make_pair(Models::getDistance(*cIt, *otherIt, outputID),
+                                                       make_pair(*cIt, *otherIt)));
+            }
+        }
+
+
+
+        // Now we sort queues by increasing distances
+        sort(candidateDistances.begin(), candidateDistances.end(), pairCompareFirst<ModelPair>);
+        sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Model>>);
+    }
+
+
+    // Now that everything is initialized, we go on to do the merges
+    double minDistCandidates = candidateDistances.front().first;
+    double maxDistCandidates = candidateDistances.back().first;
+
+    double maxDist = maxDistCandidates;     // biggest distance between two models
+    double supDist = maxDist*2 + 0.01;      // even bigger distance (used to put entries at the end when sorting)
+
+    double minDistIndependent = supDist;
+    double maxDistIndependent = supDist;
+
+    if (!independentMergesInnerDistances.empty())
+    {
+        minDistIndependent = independentMergesInnerDistances.front().first;
+        maxDistIndependent = independentMergesInnerDistances.back().first;
+
+        maxDist = max(maxDistCandidates, maxDistIndependent);
+        supDist = maxDist*2 + 0.01;
+    }
+
+    while (!independentMergesInnerDistances.empty() || !candidateDistances.empty())
+    {
+        // Merges that are not rolled back
+        if (!independentMergesInnerDistances.empty())
+        {
+            // We update this because we may have increased minDistIndependent
+            // during the previous iteration if the children nodes of the
+            // first entries were not candidate models
+            minDistIndependent = independentMergesInnerDistances.front().first;
+
+            auto iIt = independentMergesInnerDistances.begin();
+            auto const iEnd = independentMergesInnerDistances.end();
+            size_t nbPointsToTruncate = 0;
+
+            bool doneSomething = false;
+
+            while (minDistIndependent <= minDistCandidates)
+            {
+                auto& entryDistance = iIt->first;
+                auto const& mergedModel = iIt->second;
+                auto const asNode = static_pointer_cast<Node>(mergedModel);
+                auto const& child0 = asNode->getModel0();
+                auto const& child1 = asNode->getModel1();
+
+                if ((candidateModels.count(child0) > 0) && (candidateModels.count(child1) > 0))
+                {
+                    // The merge is validated
+                    candidateModels.erase(candidateModels.find(child0));
+                    candidateModels.erase(candidateModels.find(child1));
+                    unavailable.insert(child0);
+                    unavailable.insert(child1);
+
+                    entryDistance = supDist;
+                    ++nbPointsToTruncate;
+
+                    // The model is added as a candidate model, and distances are added in candidateDistances
+                    for (auto const& model : candidateModels)
+                    {
+                        candidateDistances.push_back(make_pair(Models::getDistance(mergedModel, model, outputID),
+                                                               make_pair(mergedModel, model)));
+                    }
+
+                    candidateModels.insert(mergedModel);
+                    doneSomething = true;
+                    break;
+                }
+                else
+                {
+                    if ((unavailable.count(child0) > 0) || (unavailable.count(child1) > 0))
+                    {
+                        // The merge is definitively rolled back (otherwise it will be decided later)
+                        unavailable.insert(mergedModel);
+
+                        entryDistance = supDist;
+                        ++nbPointsToTruncate;
+                        doneSomething = true;
+                    }
+
+                    ++iIt;
+
+                    if (iIt == iEnd)
+                    {
+                        // End of the queue
+                        break;
+                    }
+
+                    minDistIndependent = iIt->first;
+                }
+            }
+
+            if (doneSomething)
+            {
+                sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Model>>);
+
+                if (nbPointsToTruncate > 0)
+                {
+                    independentMergesInnerDistances.resize(independentMergesInnerDistances.size() - nbPointsToTruncate);
+                }
+
+                if (independentMergesInnerDistances.empty())
+                {
+                    minDistIndependent = supDist;
+                }
+                else
+                {
+                    minDistIndependent = independentMergesInnerDistances.front().first;
+                    maxDistIndependent = independentMergesInnerDistances.back().first;
+                    maxDist = max(maxDistCandidates, maxDistIndependent);
+                    supDist = maxDist*2 + 0.01;
+                }
+            }
+        }
+
+
+        // New Merges
+        if (!candidateDistances.empty())
+        {
+            auto cIt = candidateDistances.begin();
+            auto const cEnd = candidateDistances.end();
+            size_t nbPointsToTruncate = 0;
+
+            while (minDistCandidates < minDistIndependent)
+            {
+                auto& entryDistance = cIt->first;
+                auto const& candidatePair = cIt->second;
+                auto const& model0 = candidatePair.first;
+                auto const& model1 = candidatePair.second;
+
+                entryDistance = supDist;
+                ++nbPointsToTruncate;
+
+                if ((unavailable.count(model0) == 0) && (unavailable.count(model1) == 0))
+                {
+                    auto newModel = tryMerge(model0, model1, markMergesAsTemporary);
+
+                    if (newModel)
+                    {
+                        // Successful merge
+                        candidateModels.erase(candidateModels.find(model0));
+                        candidateModels.erase(candidateModels.find(model1));
+                        unavailable.insert(model0);
+                        unavailable.insert(model1);
+
+                        // The model is added as a candidate model, and distances are added in candidateDistances
+                        for (auto const& model : candidateModels)
+                        {
+                            candidateDistances.push_back(make_pair(Models::getDistance(newModel, model, outputID),
+                                                                   make_pair(newModel, model)));
+                        }
+
+                        candidateModels.insert(newModel);
+                        break;
+                    }
+                }
+
+                ++cIt;
+
+                if (cIt == cEnd)
+                {
+                    // End of the queue
+                    break;
+                }
+
+                minDistCandidates = cIt->first;
+            }
+
+            sort(candidateDistances.begin(), candidateDistances.end(), pairCompareFirst<ModelPair>);
+
+            if (nbPointsToTruncate > 0)
+            {
+                candidateDistances.resize(candidateDistances.size() - nbPointsToTruncate);
+            }
+
+            if (candidateDistances.empty())
+            {
+                minDistCandidates = supDist;
+            }
+            else
+            {
+                minDistCandidates = candidateDistances.front().first;
+                maxDistCandidates = candidateDistances.back().first;
+                maxDist = max(maxDistCandidates, maxDistIndependent);
+                supDist = maxDist*2 + 0.01;
+            }
+        }
+    }
+
+
+    // Finally, we put everything in a list and return it
+    return list<shared_ptr<Model>>(candidateModels.begin(), candidateModels.end());
+}
 
 
 }

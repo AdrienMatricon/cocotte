@@ -73,11 +73,6 @@ template<typename ModelType,
 IteratorType pointsEnd(boost::shared_ptr<ModelType> pModel);
 
 template<typename ModelType,
-         typename IteratorType = typename std::conditional<std::is_const<ModelType>::value, ModelConstIterator, ModelIterator>::type,
-         typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-std::pair<double, IteratorType> getClosest(DataPoint const& point, boost::shared_ptr<ModelType> pModel);
-
-template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
 double getDistance(boost::shared_ptr<ModelType> pModel0, boost::shared_ptr<ModelType> pModel1, int outputID);
 
