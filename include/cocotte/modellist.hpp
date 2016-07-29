@@ -4,6 +4,10 @@ using std::min;
 using std::max;
 #include <list>
 using std::list;
+#include <deque>
+using std::deque;
+#include <queue>
+using std::priority_queue;
 #include <vector>
 using std::vector;
 #include <set>
@@ -41,23 +45,6 @@ namespace Cocotte {
 
 template <typename ApproximatorType>
 ApproximatorType ModelList<ApproximatorType>::approximator;
-
-
-
-// Utility function
-template <typename ApproximatorType>
-shared_ptr<Model> ModelList<ApproximatorType>::createLeaf(boost::shared_ptr<DataPoint const> point, bool markAsTemporary)
-{
-    vector<Form> forms;
-    forms.reserve(nbOutputDims);
-
-    for (auto const outDim : point->t[outputID])
-    {
-        forms.push_back(approximator.fitOnePoint(outDim.value, nbInputDims));
-    }
-
-    return shared_ptr<Model>(new Leaf(forms, point, markAsTemporary));
-}
 
 
 
@@ -375,6 +362,22 @@ string ModelList<ApproximatorType>::toString(vector<string> inputNames, vector<s
 
 
 
+// Utility function
+template <typename ApproximatorType>
+shared_ptr<Model> ModelList<ApproximatorType>::createLeaf(boost::shared_ptr<DataPoint const> point, bool markAsTemporary)
+{
+    vector<Form> forms;
+    forms.reserve(nbOutputDims);
+
+    for (auto const outDim : point->t[outputID])
+    {
+        forms.push_back(approximator.fitOnePoint(outDim.value, nbInputDims));
+    }
+
+    return shared_ptr<Model>(new Leaf(forms, point, markAsTemporary));
+}
+
+
 // Tries to merge two models into one without increasing complexity
 // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
 template <typename ApproximatorType>
@@ -502,12 +505,12 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
     }
 
     // We declare what we will need for handling all models
-    vector<pair<double,shared_ptr<Model>>> independentMergesInnerDistances;     // nodes in independently merged models
+    deque<pair<double,shared_ptr<Model>>> independentMergesInnerDistances;     // nodes in independently merged models
     // and the distances between their children
 
     set<shared_ptr<Model>> candidateModels;                                     // candidate models for the merging
     unordered_set<shared_ptr<Model>> unavailable;                                    // models which have already been merged, or that have been rolled back
-    vector<pair<double, ModelPair>> candidateDistances;                         // candidate pairs of models, and the distances between them
+    priority_queue<pair<double, ModelPair>, vector<pair<double, ModelPair>>, HasGreaterDistance<ModelPair>> candidateDistances;                         // candidate pairs of models, and the distances between them
 
 
     // We determine all candidate models for the merging phase,
@@ -571,7 +574,7 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
             auto otherIt = cIt; ++otherIt;
             for (; otherIt != cEnd; ++otherIt)
             {
-                candidateDistances.push_back(make_pair(Models::getDistance(*cIt, *otherIt, outputID),
+                candidateDistances.push(make_pair(Models::getDistance(*cIt, *otherIt, outputID),
                                                        make_pair(*cIt, *otherIt)));
             }
         }
@@ -579,28 +582,22 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
 
 
         // Now we sort queues by increasing distances
-        sort(candidateDistances.begin(), candidateDistances.end(), pairCompareFirst<ModelPair>);
         sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Model>>);
     }
 
 
     // Now that everything is initialized, we go on to do the merges
-    double minDistCandidates = candidateDistances.front().first;
-    double maxDistCandidates = candidateDistances.back().first;
+    double minDistCandidates = candidateDistances.top().first;
 
-    double maxDist = maxDistCandidates;     // biggest distance between two models
-    double supDist = maxDist*2 + 0.01;      // even bigger distance (used to put entries at the end when sorting)
-
-    double minDistIndependent = supDist;
-    double maxDistIndependent = supDist;
+    double minDistIndependent = 0.;     // smallest distance between two models
+    double maxDistIndependent = 0.;     // biggest distance between two models
+    double supDistIndependent = 0.;     // even bigger distance (used to put entries at the end when sorting)
 
     if (!independentMergesInnerDistances.empty())
     {
         minDistIndependent = independentMergesInnerDistances.front().first;
         maxDistIndependent = independentMergesInnerDistances.back().first;
-
-        maxDist = max(maxDistCandidates, maxDistIndependent);
-        supDist = maxDist*2 + 0.01;
+        supDistIndependent = maxDistIndependent*2 + 0.01;
     }
 
     while (!independentMergesInnerDistances.empty() || !candidateDistances.empty())
@@ -619,7 +616,7 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
 
             bool doneSomething = false;
 
-            while (minDistIndependent <= minDistCandidates)
+            while (candidateDistances.empty() || (minDistIndependent <= minDistCandidates))
             {
                 auto& entryDistance = iIt->first;
                 auto const& mergedModel = iIt->second;
@@ -635,13 +632,13 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                     unavailable.insert(child0);
                     unavailable.insert(child1);
 
-                    entryDistance = supDist;
+                    entryDistance = supDistIndependent;
                     ++nbPointsToTruncate;
 
                     // The model is added as a candidate model, and distances are added in candidateDistances
                     for (auto const& model : candidateModels)
                     {
-                        candidateDistances.push_back(make_pair(Models::getDistance(mergedModel, model, outputID),
+                        candidateDistances.push(make_pair(Models::getDistance(mergedModel, model, outputID),
                                                                make_pair(mergedModel, model)));
                     }
 
@@ -656,7 +653,7 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                         // The merge is definitively rolled back (otherwise it will be decided later)
                         unavailable.insert(mergedModel);
 
-                        entryDistance = supDist;
+                        entryDistance = supDistIndependent;
                         ++nbPointsToTruncate;
                         doneSomething = true;
                     }
@@ -682,16 +679,11 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                     independentMergesInnerDistances.resize(independentMergesInnerDistances.size() - nbPointsToTruncate);
                 }
 
-                if (independentMergesInnerDistances.empty())
-                {
-                    minDistIndependent = supDist;
-                }
-                else
+                if (!independentMergesInnerDistances.empty())
                 {
                     minDistIndependent = independentMergesInnerDistances.front().first;
                     maxDistIndependent = independentMergesInnerDistances.back().first;
-                    maxDist = max(maxDistCandidates, maxDistIndependent);
-                    supDist = maxDist*2 + 0.01;
+                    supDistIndependent = maxDistIndependent*2 + 0.01;
                 }
             }
         }
@@ -700,19 +692,16 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
         // New Merges
         if (!candidateDistances.empty())
         {
-            auto cIt = candidateDistances.begin();
-            auto const cEnd = candidateDistances.end();
-            size_t nbPointsToTruncate = 0;
-
-            while (minDistCandidates < minDistIndependent)
+            while (!candidateDistances.empty()
+                   && (independentMergesInnerDistances.empty()
+                       || (minDistCandidates < minDistIndependent)))
             {
-                auto& entryDistance = cIt->first;
-                auto const& candidatePair = cIt->second;
+                auto entry = candidateDistances.top();
+                candidateDistances.pop();
+
+                auto const& candidatePair = entry.second;
                 auto const& model0 = candidatePair.first;
                 auto const& model1 = candidatePair.second;
-
-                entryDistance = supDist;
-                ++nbPointsToTruncate;
 
                 if ((unavailable.count(model0) == 0) && (unavailable.count(model1) == 0))
                 {
@@ -729,7 +718,7 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                         // The model is added as a candidate model, and distances are added in candidateDistances
                         for (auto const& model : candidateModels)
                         {
-                            candidateDistances.push_back(make_pair(Models::getDistance(newModel, model, outputID),
+                            candidateDistances.push(make_pair(Models::getDistance(newModel, model, outputID),
                                                                    make_pair(newModel, model)));
                         }
 
@@ -738,34 +727,12 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                     }
                 }
 
-                ++cIt;
-
-                if (cIt == cEnd)
-                {
-                    // End of the queue
-                    break;
-                }
-
-                minDistCandidates = cIt->first;
+                minDistCandidates = candidateDistances.top().first;
             }
 
-            sort(candidateDistances.begin(), candidateDistances.end(), pairCompareFirst<ModelPair>);
-
-            if (nbPointsToTruncate > 0)
+            if (!candidateDistances.empty())
             {
-                candidateDistances.resize(candidateDistances.size() - nbPointsToTruncate);
-            }
-
-            if (candidateDistances.empty())
-            {
-                minDistCandidates = supDist;
-            }
-            else
-            {
-                minDistCandidates = candidateDistances.front().first;
-                maxDistCandidates = candidateDistances.back().first;
-                maxDist = max(maxDistCandidates, maxDistIndependent);
-                supDist = maxDist*2 + 0.01;
+                minDistCandidates = candidateDistances.top().first;
             }
         }
     }

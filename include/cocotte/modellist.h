@@ -38,17 +38,6 @@ private:
     cv::RandomTrees classifier;
     bool trainedClassifier = false;
 
-    // Comparison function to sort models by distance
-    template <typename T>
-    static bool pairCompareFirst(std::pair<double, T> const& lhs,
-                            std::pair<double, T> const& rhs)
-    {
-        return std::get<0>(lhs) < std::get<0>(rhs);
-    }
-
-    // Utility function
-    boost::shared_ptr<Models::Model> createLeaf(boost::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
-
 
 public:
 
@@ -92,6 +81,26 @@ public:
     std::string toString(std::vector<std::string> inputNames, std::vector<std::string> outputNames) const;
 
 private:
+
+    // Comparison function to sort models by distance
+    template <typename T>
+    static bool pairCompareFirst(std::pair<double, T> const& lhs,
+                            std::pair<double, T> const& rhs)
+    {
+        return std::get<0>(lhs) < std::get<0>(rhs);
+    }
+
+    template <typename T>
+    struct HasGreaterDistance
+    {
+        bool operator()(std::pair<double, T> const& lhs, std::pair<double, T> const& rhs)
+        {
+            return !pairCompareFirst(lhs,rhs);
+        }
+    };
+
+    // Utility function
+    boost::shared_ptr<Models::Model> createLeaf(boost::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
 
     // Tries to merge two models into one without increasing complexity
     // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
