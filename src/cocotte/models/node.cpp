@@ -37,7 +37,7 @@ bool Node::isTemporary() const
 }
 
 
-int Node::getNbPoints() const
+size_t Node::getNbPoints() const
 {
     return nbPoints;
 }

@@ -210,8 +210,8 @@ Those names are given as vectors, with the same structure as in `Cocotte::DataPo
     * they call `restructureModels()`,
     * they add new points as if by `addDataPoint()` or `addDataPoints()`,
     * they call `removeArtifacts()`.
-- `addDataPointToExistingModels()` and `addDataPointsToExistingModels()` are allow you to delay computation:
-    * when called, the new training datapoints are used to refine existing models rather than improving the model collection as a whole, which is much faster,
+- `addDataPointNoRollback()` and `addDataPointsNoRollback()` are allow you to delay computation:
+    * when called, the new training datapoints are simply used to refine existing models, which is potentially faster than improving the model collection as a whole (which may involve rolling back many merges),
     * calling `restructureModels()` leaves `Cocotte::Learner` in the same state as if all datapoints were just added with `addDataPoints()`.
 
 ##### Prediction

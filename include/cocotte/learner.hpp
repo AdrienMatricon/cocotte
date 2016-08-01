@@ -144,41 +144,50 @@ void Learner<ApproximatorType>::removeArtifacts()
     for (auto& mList: modelLists)
     {
         // For each old model, we check if all its points could all fit in other models
-        int const nbModels = mList.getNbModels();
+        size_t nbModels = mList.getNbModels();
+        bool keepGoing = true;
 
-        if (nbModels < 2)
+        while (keepGoing && (nbModels >= 2))
         {
-            continue;
-        }
+            keepGoing = false;
 
-        for (int j = 0; j < nbModels; ++j)
-        {
-            // We remove the first model
-            auto firstModel = mList.firstModel();
-            mList.removeFirstModel();
-
-            // We save the information we need to roll back what we will do
-            auto const oldList = mList;
-
-            // We try to add all points from the current model
-            bool success = true;
-
-            for (auto mIt = Models::pointsBegin(firstModel), mEnd = Models::pointsEnd(firstModel);
-                 mIt != mEnd; ++mIt)
+            for (size_t j = 0; j < nbModels; ++j)
             {
-                if (!mList.tryAddingPointToExistingModels(mIt.getSharedPointer()))
+                // We remove the first model
+                auto firstModel = mList.firstModel();
+                mList.removeFirstModel();
+
+                // We save the information we need to roll back what we will do
+                auto const oldList = mList;
+
+                // We build a vector of all datapoints in the first model
+                vector<boost::shared_ptr<DataPoint const>> pointers;
+                pointers.reserve(firstModel->getNbPoints());
+
+                for (auto mIt = Models::pointsBegin(firstModel), mEnd = Models::pointsEnd(firstModel);
+                     mIt != mEnd; ++mIt)
                 {
-                    success = false;
-                    break;
+                    pointers.push_back(mIt.getSharedPointer());
                 }
-            }
 
-            // If the points were successfully distributed, the model was artifact
-            // Otherwise, we roll back the changes, and the first model becomes the last model
-            if (!success)
-            {
-                mList = std::move(oldList);
-                mList.addModel(firstModel);
+                // We try to distribute the points into other models
+                mList.addPoints(pointers, true, true);
+
+                size_t newNbModels = mList.getNbModels();
+                if (newNbModels < nbModels)
+                {
+                    // If it worked, we keep removing artifacts
+                    keepGoing = true;
+                    nbModels = newNbModels;
+                    continue;
+                }
+                else
+                {
+                    // If it did not work, we try to distribute other models
+                    // and stop if no model could be distributed
+                    mList = std::move(oldList);
+                    mList.addModel(firstModel);
+                }
             }
         }
     }
@@ -187,23 +196,32 @@ void Learner<ApproximatorType>::removeArtifacts()
 
 // Faster, greedy, the order in which the points are added matters
 template <typename ApproximatorType>
-void Learner<ApproximatorType>::addDataPointToExistingModels(DataPoint const& point)
+void Learner<ApproximatorType>::addDataPointNoRollback(DataPoint const& point)
 {
     data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
 
     for (auto& mList : modelLists)
     {
-        mList.tryAddingPointToExistingModels(data.back());
+        mList.addPoint(data.back(), true);
     }
 }
 
 
 template <typename ApproximatorType>
-void Learner<ApproximatorType>::addDataPointsToExistingModels(vector<DataPoint> const& points)
+void Learner<ApproximatorType>::addDataPointsNoRollback(vector<DataPoint> const& points)
 {
+    data.reserve(data.size() + points.size());
+    vector<boost::shared_ptr<DataPoint const>> pointers;
+
     for (auto const& point : points)
     {
-        addDataPointToExistingModels(point);
+        data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
+        pointers.push_back(data.back());
+    }
+
+    for (auto& mList : modelLists)
+    {
+        mList.addPoints(pointers, true);
     }
 }
 
@@ -216,8 +234,6 @@ void Learner<ApproximatorType>::restructureModels()
     {
         mList.restructureModels();
     }
-
-    removeArtifacts();
 }
 
 

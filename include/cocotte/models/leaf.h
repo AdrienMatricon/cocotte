@@ -34,7 +34,7 @@ public:
     Leaf(std::vector<Approximators::Form> const& forms, boost::shared_ptr<DataPoint const> pointAddress, bool temporary = false);
     virtual bool isLeaf() const override;
     virtual bool isTemporary() const override;
-    virtual int getNbPoints() const override;
+    virtual size_t getNbPoints() const override;
     virtual std::vector<Approximators::Form> const& getForms() override;
 
     DataPoint const& getPoint();

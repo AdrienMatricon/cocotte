@@ -37,7 +37,7 @@ public:
     Node(boost::shared_ptr<Model> model0, boost::shared_ptr<Model> model1, bool temporary = false);
     virtual bool isLeaf() const override;
     virtual bool isTemporary() const override;
-    virtual int getNbPoints() const override;
+    virtual size_t getNbPoints() const override;
     double getBiggestInnerDistance(int outputID);   // Biggest distance between two merged submodels
     virtual std::vector<Approximators::Form> const& getForms() override;
     void setForms(std::vector<Approximators::Form> const& forms);

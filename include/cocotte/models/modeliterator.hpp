@@ -178,7 +178,7 @@ template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
 IteratorType pointsEnd(boost::shared_ptr<ModelType> pModel)
 {
-    return IteratorType(list<shared_ptr<ModelType>>());
+    return IteratorType(list<shared_ptr<ModelType>>{});
 }
 
 

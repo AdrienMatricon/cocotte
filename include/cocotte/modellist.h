@@ -57,16 +57,17 @@ public:
 
     // Creates leaves for the new points and merges them with models or submodels,
     // starting with the closest ones. We expect to get the same result
-    // when adding points one by one, in batches, or all at once.
-    void addPoint(boost::shared_ptr<DataPoint const> pointAddress);
-    void addPoints(std::vector<boost::shared_ptr<DataPoint const>> const& pointAddresses);
-
-    // Creates a leaf for a new point and tries to merge it with an already existing model,
-    // Models created in this way are marked as temporary
-    // Returns true if it succeeded, false if a new model was created
-    bool tryAddingPointToExistingModels(boost::shared_ptr<DataPoint const> pointAddress);
+    // when adding points one by one, in batches, or all at once,
+    // except if noRollback (previous merges are kept)
+    // or addToExistingModelsOnly (new leaves merged into old models first) is set to true.
+    // In that case, merging goes faster and new leaves/nodes are marked as temporary
+    void addPoint(boost::shared_ptr<DataPoint const> pointAddress, bool noRollback = false);
+    void addPoints(std::vector<boost::shared_ptr<DataPoint const>> const& pointAddresses,
+                   bool noRollback = false,
+                   bool addToExistingModelsOnly = false);
 
     // Removes temporary models and add all points in temporary leaves with addPoints()
+    // (with noRollback and addToExistingModelsOnly set to false)
     void restructureModels();
 
     // Predict the value of a point
@@ -112,9 +113,13 @@ private:
     //   => Those merges may be rolled back because of the new models in atomicModels.
     //      We expect to get the same result with independentlyMergedModels or with the
     //      list of every leaf in independentlyMergedModels
+    // - if addingToExistingModelsis set to true:
+    //   => atomicModels will not be merged with each other before being merged with those in independentlyMergedModels
+    //   => no rollback will be done
     std::list<boost::shared_ptr<Models::Model>> mergeAsMuchAsPossible(std::list<boost::shared_ptr<Models::Model>>&& atomicModels,
                                                                       std::list<boost::shared_ptr<Models::Model>>&& independentlyMergedModels,
-                                                                      bool markMergesAsTemporary = false);
+                                                                      bool noRollback = false,
+                                                                      bool addToExistingModelsOnly = false);
 
 
     // Serialization

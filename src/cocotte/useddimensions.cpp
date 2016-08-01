@@ -113,12 +113,12 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(int d) const
     if (d > nbUsed)
     {
         // No combination works
-        return list<UsedDimensions>();
+        return list<UsedDimensions>{};
     }
     else if (d < 1)
     {
         // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<int>()));
+        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<int>{}));
     }
 
     // We convert the list to a vector to access it more easily
@@ -128,7 +128,7 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(int d) const
     // We create a vector of pairs to generate the combination
     // Each pair contains a list of dimensions of increasing indices in asVector,
     // and the indice of the next dimension in asVector
-    vector<pair<list<int>,int>> combinations(1, pair<list<int>,int>(list<int>(), 0));
+    vector<pair<list<int>,int>> combinations(1, pair<list<int>,int>(list<int>{}, 0));
 
     for (int currentNb = 0; currentNb < d; ++currentNb)
     {
@@ -168,12 +168,12 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(int d) const
     if ( (d-1) > nbUsed )
     {
         // No combination works
-        return list<UsedDimensions>();
+        return list<UsedDimensions>{};
     }
     else if (d < 1)
     {
         // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<int>()));
+        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<int>{}));
     }
 
     auto result = getCombinationsFromUsed(d);

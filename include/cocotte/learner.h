@@ -56,8 +56,8 @@ public:
     void removeArtifacts();
 
     // Faster, greedy, the order in which the points are added matters
-    void addDataPointToExistingModels(DataPoint const& point);
-    void addDataPointsToExistingModels(std::vector<DataPoint> const& points);
+    void addDataPointNoRollback(DataPoint const& point);
+    void addDataPointsNoRollback(std::vector<DataPoint> const& points);
 
     // Makes it as if all points were added with addDataPoints(), then runs removeArtifacts()
     void restructureModels();

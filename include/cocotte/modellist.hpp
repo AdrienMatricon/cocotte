@@ -107,59 +107,53 @@ void ModelList<ApproximatorType>::removeFirstModel()
 
 // Creates leaves for the new points and merges them with models or submodels,
 // starting with the closest ones. We expect to get the same result
-// when adding points one by one, in batches, or all at once.
+// when adding points one by one, in batches, or all at once,
+// except if noRollback (previous merges are kept)
+// or addToExistingModelsOnly (new leaves merged into old models first) is set to true.
+// In that case, merging goes faster and new leaves/nodes are marked as temporary
 template <typename ApproximatorType>
-void ModelList<ApproximatorType>::addPoint(boost::shared_ptr<DataPoint const> pointAddress)
+void ModelList<ApproximatorType>::addPoint(shared_ptr<DataPoint const> pointAddress, bool noRollback)
 {
-    addPoints(vector<boost::shared_ptr<DataPoint const>>(1, pointAddress));
+    models = std::move(mergeAsMuchAsPossible(list<shared_ptr<Model>>(1, createLeaf(pointAddress, noRollback)),
+                                             std::move(models),
+                                             noRollback,
+                                             true));
+
+    trainedClassifier = false;
+    nbModels = models.size();
 }
 
 
 template <typename ApproximatorType>
-void ModelList<ApproximatorType>::addPoints(vector<boost::shared_ptr<DataPoint const>> const& pointAddresses)
+void ModelList<ApproximatorType>::addPoints(vector<shared_ptr<DataPoint const>> const& pointAddresses,
+                                            bool noRollback,
+                                            bool addToExistingModelsOnly)
 {
-    trainedClassifier = false;
+    bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
 
     list<shared_ptr<Model>> newLeaves;
-
     for (auto const& pointAddress : pointAddresses)
     {
-        newLeaves.push_back(createLeaf(pointAddress));
+        newLeaves.push_back(createLeaf(pointAddress, markAsTemporary));
     }
 
-    models = std::move(mergeAsMuchAsPossible(std::move(newLeaves), std::move(models)));
-    nbModels = models.size();
-}
-
-
-
-// Creates a leaf for a new point and tries to merge it with an already existing model,
-// Models created in this way are marked as temporary
-// Returns true if it succeeded, false if a new model was created
-template <typename ApproximatorType>
-bool ModelList<ApproximatorType>::tryAddingPointToExistingModels(boost::shared_ptr<DataPoint const> pointAddress)
-{
-    size_t const oldNbModels = nbModels;
+    models = std::move(mergeAsMuchAsPossible(std::move(newLeaves), std::move(models), noRollback, addToExistingModelsOnly));
 
     trainedClassifier = false;
-
-    models.push_back(createLeaf(pointAddress, true));
-    models = std::move(mergeAsMuchAsPossible(std::move(models), list<shared_ptr<Model>>(), true));
     nbModels = models.size();
-
-    return (nbModels == oldNbModels);
 }
 
 
 
 // Removes temporary models and add all points in temporary leaves with addPoints()
+// (with noRollback and addToExistingModelsOnly set to false)
 template <typename ApproximatorType>
 void ModelList<ApproximatorType>::restructureModels()
 {
     trainedClassifier = false;
 
     list<shared_ptr<Model>> toProcess = std::move(models);
-    models = list<shared_ptr<Model>>();
+    models = list<shared_ptr<Model>>{};
     nbModels = 0;
 
     vector<shared_ptr<DataPoint const>> pointsInTemporaryLeaves;
@@ -430,7 +424,7 @@ shared_ptr<Model> ModelList<ApproximatorType>::tryMerge(shared_ptr<Model> model0
         if (!success)
         {
             // We did not succeed, so we return a default-constructed shared_ptr
-            return shared_ptr<Model>();
+            return shared_ptr<Model>{};
         }
 
         // Otherwise, if we succeeded, we try to find the best form
@@ -484,13 +478,15 @@ shared_ptr<Model> ModelList<ApproximatorType>::tryMerge(shared_ptr<Model> model0
 //   => Those merges may be rolled back because of the new models in atomicModels.
 //      We expect to get the same result with independentlyMergedModels or with the
 //      list of every leaf in independentlyMergedModels
+// - noRollback prevents those rollbacks if set to true
+// - addToExistingModelsOnly prevents atomic models from being merged with each other
+//   before being merged to models in independentlyMergedModels
 template <typename ApproximatorType>
 list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<shared_ptr<Model>>&& atomicModels,
                                                                            list<shared_ptr<Model>>&& independentlyMergedModels,
-                                                                           bool markMergesAsTemporary)
+                                                                           bool noRollback,
+                                                                           bool addToExistingModelsOnly)
 {
-    using ModelPair = pair<shared_ptr<Model>,shared_ptr<Model>>;
-
     // Special cases
     if (atomicModels.empty())
     {
@@ -498,27 +494,47 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
         // all relevant merges were already done when the models were merged independently
         return independentlyMergedModels;
     }
-    else if(independentlyMergedModels.empty() && (atomicModels.size() == 1))
+    else if (independentlyMergedModels.empty()
+             && (addToExistingModelsOnly
+                 || (atomicModels.size() == 1)))
     {
-        // If there is only one model and it is atomic, there is nothing to do
+        // There is nothing to do
         return atomicModels;
     }
 
-    // We declare what we will need for handling all models
-    deque<pair<double,shared_ptr<Model>>> independentMergesInnerDistances;     // nodes in independently merged models
-    // and the distances between their children
+
+    //
+    // General case
+    //
+
+
+    // Some definitions first
+    using ModelPair = pair<shared_ptr<Model>,shared_ptr<Model>>;
+    bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
 
     set<shared_ptr<Model>> candidateModels;                                     // candidate models for the merging
-    unordered_set<shared_ptr<Model>> unavailable;                                    // models which have already been merged, or that have been rolled back
-    priority_queue<pair<double, ModelPair>, vector<pair<double, ModelPair>>, HasGreaterDistance<ModelPair>> candidateDistances;                         // candidate pairs of models, and the distances between them
+    unordered_set<shared_ptr<Model>> unavailable;                               // models which have already been merged, or that have been rolled back
+
+    deque<pair<double,shared_ptr<Model>>> independentMergesInnerDistances;      // nodes in independently merged models
+                                                                                // and the distances between their children
+    priority_queue<pair<double, ModelPair>,
+            vector<pair<double, ModelPair>>,
+            HasGreaterDistance<ModelPair>> candidateDistances;                  // candidate pairs of models, and the distances between them
 
 
     // We determine all candidate models for the merging phase,
     // and initialize candidateDistances as well as independentMergesInnerDistances
     {
-        // First we consider distances between independently merged models (or their submodels)
-        // and atomic models, to see if we may need to roll back some merges
+        // First we consider independently merged models
+        // and determine if we may need to roll back some merges
+        if (noRollback)
         {
+            candidateModels.insert(independentlyMergedModels.begin(), independentlyMergedModels.end());
+            independentlyMergedModels.resize(0);
+        }
+        else
+        {
+            // We go down the tree as much as necessary
             while (!independentlyMergedModels.empty())
             {
                 auto const model = independentlyMergedModels.back();
@@ -559,30 +575,47 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                 }
 
             }
+
+            // We sort queue by increasing distances
+            sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Model>>);
         }
 
 
-        // Then we add atomic models to the candidate models
-        candidateModels.insert(atomicModels.begin(), atomicModels.end());
-        atomicModels.resize(0);
-
-
-        // Finally we compute all distances between candidate models
-        for (auto cIt = candidateModels.begin(), cEnd = candidateModels.end(); cIt != cEnd; ++cIt)
+        // Then we consider atomic models and compute distances
+        if (addToExistingModelsOnly)
         {
-
-            auto otherIt = cIt; ++otherIt;
-            for (; otherIt != cEnd; ++otherIt)
+            // We compute distances between the independently merged models and the atomic models
+            for (auto cIt = candidateModels.begin(), cEnd = candidateModels.end(); cIt != cEnd; ++cIt)
             {
-                candidateDistances.push(make_pair(Models::getDistance(*cIt, *otherIt, outputID),
-                                                       make_pair(*cIt, *otherIt)));
+                for (auto aIt = atomicModels.begin(), aEnd = atomicModels.end(); aIt != aEnd; ++aIt)
+                {
+                    candidateDistances.push(make_pair(Models::getDistance(*cIt, *aIt, outputID),
+                                                      make_pair(*cIt, *aIt)));
+                }
+            }
+
+            // Then we move atomic models into the candidate models
+            candidateModels.insert(atomicModels.begin(), atomicModels.end());
+            atomicModels.resize(0);
+        }
+        else
+        {
+            // We moveadd atomic models to the candidate models
+            candidateModels.insert(atomicModels.begin(), atomicModels.end());
+            atomicModels.resize(0);
+
+            // Then we compute all distances between candidate models
+            for (auto cIt = candidateModels.begin(), cEnd = candidateModels.end(); cIt != cEnd; ++cIt)
+            {
+
+                auto otherIt = cIt; ++otherIt;
+                for (; otherIt != cEnd; ++otherIt)
+                {
+                    candidateDistances.push(make_pair(Models::getDistance(*cIt, *otherIt, outputID),
+                                                      make_pair(*cIt, *otherIt)));
+                }
             }
         }
-
-
-
-        // Now we sort queues by increasing distances
-        sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Model>>);
     }
 
 
@@ -627,8 +660,8 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                 if ((candidateModels.count(child0) > 0) && (candidateModels.count(child1) > 0))
                 {
                     // The merge is validated
-                    candidateModels.erase(candidateModels.find(child0));
-                    candidateModels.erase(candidateModels.find(child1));
+                    candidateModels.erase(child0);
+                    candidateModels.erase(child1);
                     unavailable.insert(child0);
                     unavailable.insert(child1);
 
@@ -639,7 +672,7 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                     for (auto const& model : candidateModels)
                     {
                         candidateDistances.push(make_pair(Models::getDistance(mergedModel, model, outputID),
-                                                               make_pair(mergedModel, model)));
+                                                          make_pair(mergedModel, model)));
                     }
 
                     candidateModels.insert(mergedModel);
@@ -705,13 +738,13 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
 
                 if ((unavailable.count(model0) == 0) && (unavailable.count(model1) == 0))
                 {
-                    auto newModel = tryMerge(model0, model1, markMergesAsTemporary);
+                    auto newModel = tryMerge(model0, model1, markAsTemporary);
 
                     if (newModel)
                     {
                         // Successful merge
-                        candidateModels.erase(candidateModels.find(model0));
-                        candidateModels.erase(candidateModels.find(model1));
+                        candidateModels.erase(model0);
+                        candidateModels.erase(model1);
                         unavailable.insert(model0);
                         unavailable.insert(model1);
 
@@ -719,7 +752,7 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
                         for (auto const& model : candidateModels)
                         {
                             candidateDistances.push(make_pair(Models::getDistance(newModel, model, outputID),
-                                                                   make_pair(newModel, model)));
+                                                              make_pair(newModel, model)));
                         }
 
                         candidateModels.insert(newModel);
