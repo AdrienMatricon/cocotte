@@ -5,9 +5,9 @@ using std::max;
 using std::vector;
 #include <list>
 using std::list;
-#include <boost/shared_ptr.hpp>
-using boost::shared_ptr;
-using boost::static_pointer_cast;
+#include <memory>
+using std::shared_ptr;
+using std::static_pointer_cast;
 #include <cocotte/approximators/form.h>
 using Cocotte::Approximators::Form;
 #include <cocotte/models/modeliterator.h>

@@ -1,6 +1,8 @@
 
 #include <vector>
 using std::vector;
+#include <memory>
+using std::shared_ptr;
 #include <cocotte/approximators/form.h>
 using Cocotte::Approximators::Form;
 #include <cocotte/models/leaf.h>
@@ -10,7 +12,7 @@ namespace Models {
 
 
 
-Leaf::Leaf(vector<Form> const& f, boost::shared_ptr<DataPoint const> p, bool temp) : forms(f), pointAddress(p), temporary(temp)
+Leaf::Leaf(vector<Form> const& f, shared_ptr<DataPoint const> p, bool temp) : forms(f), pointAddress(p), temporary(temp)
 {}
 
 
@@ -50,7 +52,7 @@ DataPoint const& Leaf::getPoint() const
 }
 
 
-boost::shared_ptr<DataPoint const> Leaf::getPointAddress() const
+shared_ptr<DataPoint const> Leaf::getPointAddress() const
 {
     return pointAddress;
 }

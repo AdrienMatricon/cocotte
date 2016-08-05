@@ -7,7 +7,7 @@
 #include <list>
 #include <vector>
 #include <utility>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <type_traits>
 #include <cocotte/datatypes.h>
 #include <cocotte/models/leaf.h>
@@ -26,7 +26,7 @@ class ModelIt : public std::iterator<std::input_iterator_tag, PointType>
 
 private:
 
-    std::list<boost::shared_ptr<ModelType>> treeBranch;
+    std::list<std::shared_ptr<ModelType>> treeBranch;
     int depth = 0;
 
 
@@ -36,15 +36,15 @@ public:
     using LeafType = typename std::conditional<std::is_const<ModelType>::value, Leaf const, Leaf>::type;
 
     // Constructors
-    ModelIt(std::list<boost::shared_ptr<ModelType>> treeBranch, int depth=0);
+    ModelIt(std::list<std::shared_ptr<ModelType>> treeBranch, int depth=0);
     ModelIt(ModelIt const& mIt);
 
     // Accessors
-    std::list<boost::shared_ptr<Model>> const& getTreeBranch() const;
+    std::list<std::shared_ptr<Model>> const& getTreeBranch() const;
     int getDepth() const;
 
     // Operators
-    boost::shared_ptr<PointType const> getSharedPointer();
+    std::shared_ptr<PointType const> getSharedPointer();
     PointType const& operator*();
     PointType const* operator->();
 
@@ -65,16 +65,16 @@ using ModelConstIterator = ModelIt<Model const, DataPoint const>;
 template<typename ModelType,
          typename IteratorType = typename std::conditional<std::is_const<ModelType>::value, ModelConstIterator, ModelIterator>::type,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-IteratorType pointsBegin(boost::shared_ptr<ModelType> pModel);
+IteratorType pointsBegin(std::shared_ptr<ModelType> pModel);
 
 template<typename ModelType,
          typename IteratorType = typename std::conditional<std::is_const<ModelType>::value, ModelConstIterator, ModelIterator>::type,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-IteratorType pointsEnd(boost::shared_ptr<ModelType> pModel);
+IteratorType pointsEnd(std::shared_ptr<ModelType> pModel);
 
 template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-double getDistance(boost::shared_ptr<ModelType> pModel0, boost::shared_ptr<ModelType> pModel1, int outputID);
+double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, int outputID);
 
 inline double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, int outputID);
 

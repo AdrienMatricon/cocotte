@@ -3,7 +3,7 @@
 
 
 #include <vector>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/shared_ptr.hpp>
 #include <boost/serialization/vector.hpp>
@@ -26,15 +26,15 @@ private:
     std::vector<Approximators::Form> forms;
     int nbPoints;
     double biggestInnerDistance = -1.;
-    boost::shared_ptr<Model> model0;
-    boost::shared_ptr<Model> model1;
+    std::shared_ptr<Model> model0;
+    std::shared_ptr<Model> model1;
     bool temporary;
 
 
 public:
 
     Node() = default;
-    Node(boost::shared_ptr<Model> model0, boost::shared_ptr<Model> model1, bool temporary = false);
+    Node(std::shared_ptr<Model> model0, std::shared_ptr<Model> model1, bool temporary = false);
     virtual bool isLeaf() const override;
     virtual bool isTemporary() const override;
     virtual size_t getNbPoints() const override;
@@ -42,8 +42,8 @@ public:
     virtual std::vector<Approximators::Form> const& getForms() override;
     void setForms(std::vector<Approximators::Form> const& forms);
 
-    boost::shared_ptr<Model> getModel0() const;
-    boost::shared_ptr<Model> getModel1() const;
+    std::shared_ptr<Model> getModel0() const;
+    std::shared_ptr<Model> getModel1() const;
 
     // Serialization
     template<typename Archive>

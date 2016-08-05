@@ -5,9 +5,9 @@
 #include <list>
 #include <utility>
 #include <string>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/serialization/list.hpp>
-#include <boost/serialization/shared_ptr.hpp>
+//#include <boost/serialization/shared_ptr.hpp>
 #include <opencv2/ml/ml.hpp>
 #include <cocotte/models/models.hh>
 
@@ -28,7 +28,7 @@ private:
     // Each model is a binary tree :
     // - each leaf contains a point
     // - each node contains a form of the approximator that explains all points under it
-    std::list<boost::shared_ptr<Models::Model>> models;
+    std::list<std::shared_ptr<Models::Model>> models;
 
     size_t outputID;            // ID of the output in the DataPoint
     size_t nbInputDims;         // number of dimensions in the input
@@ -51,8 +51,8 @@ public:
 
 
     // Adding and removing models
-    void addModel(boost::shared_ptr<Models::Model> model);
-    boost::shared_ptr<Models::Model> firstModel();
+    void addModel(std::shared_ptr<Models::Model> model);
+    std::shared_ptr<Models::Model> firstModel();
     void removeFirstModel();
 
     // Creates leaves for the new points and merges them with models or submodels,
@@ -61,8 +61,8 @@ public:
     // except if noRollback (previous merges are kept)
     // or addToExistingModelsOnly (new leaves merged into old models first) is set to true.
     // In that case, merging goes faster and new leaves/nodes are marked as temporary
-    void addPoint(boost::shared_ptr<DataPoint const> pointAddress, bool noRollback = false);
-    void addPoints(std::vector<boost::shared_ptr<DataPoint const>> const& pointAddresses,
+    void addPoint(std::shared_ptr<DataPoint const> pointAddress, bool noRollback = false);
+    void addPoints(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses,
                    bool noRollback = false,
                    bool addToExistingModelsOnly = false);
 
@@ -86,7 +86,7 @@ private:
     // Comparison function to sort models by distance
     template <typename T>
     static bool pairCompareFirst(std::pair<double, T> const& lhs,
-                            std::pair<double, T> const& rhs)
+                                 std::pair<double, T> const& rhs)
     {
         return std::get<0>(lhs) < std::get<0>(rhs);
     }
@@ -101,11 +101,11 @@ private:
     };
 
     // Utility function
-    boost::shared_ptr<Models::Model> createLeaf(boost::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
+    std::shared_ptr<Models::Model> createLeaf(std::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
 
     // Tries to merge two models into one without increasing complexity
     // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
-    boost::shared_ptr<Models::Model> tryMerge(boost::shared_ptr<Models::Model> model0, boost::shared_ptr<Models::Model> model1, bool markAsTemporary = false);
+    std::shared_ptr<Models::Model> tryMerge(std::shared_ptr<Models::Model> model0, std::shared_ptr<Models::Model> model1, bool markAsTemporary = false);
 
     // Merges the models with each other, starting with the closest ones:
     // - atomicModels is a list of leaves, or more generally of models that are supposed correctly merged
@@ -116,10 +116,10 @@ private:
     // - if addingToExistingModelsis set to true:
     //   => atomicModels will not be merged with each other before being merged with those in independentlyMergedModels
     //   => no rollback will be done
-    std::list<boost::shared_ptr<Models::Model>> mergeAsMuchAsPossible(std::list<boost::shared_ptr<Models::Model>>&& atomicModels,
-                                                                      std::list<boost::shared_ptr<Models::Model>>&& independentlyMergedModels,
-                                                                      bool noRollback = false,
-                                                                      bool addToExistingModelsOnly = false);
+    std::list<std::shared_ptr<Models::Model>> mergeAsMuchAsPossible(std::list<std::shared_ptr<Models::Model>>&& atomicModels,
+                                                                    std::list<std::shared_ptr<Models::Model>>&& independentlyMergedModels,
+                                                                    bool noRollback = false,
+                                                                    bool addToExistingModelsOnly = false);
 
 
     // Serialization

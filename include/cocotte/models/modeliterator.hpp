@@ -1,15 +1,8 @@
 
 #include <cmath>
-using std::abs;
 #include <list>
-using std::list;
-#include <vector>
-using std::vector;
 #include <utility>
-using std::pair;
-#include <boost/shared_ptr.hpp>
-using boost::shared_ptr;
-using boost::static_pointer_cast;
+#include <memory>
 #include <cocotte/models/leaf.h>
 #include <cocotte/models/node.h>
 #include <cocotte/models/modeliterator.h>
@@ -22,7 +15,7 @@ namespace Models {
 
 // Constructors
 template <typename ModelType, typename PointType>
-ModelIt<ModelType, PointType>::ModelIt(list<shared_ptr<ModelType>> t, int d) : treeBranch(t), depth(d)
+ModelIt<ModelType, PointType>::ModelIt(std::list<std::shared_ptr<ModelType>> t, int d) : treeBranch(t), depth(d)
 {}
 
 
@@ -34,7 +27,7 @@ ModelIt<ModelType, PointType>::ModelIt(ModelIt const& mIt) : treeBranch(mIt.tree
 
 // Accessors
 template <typename ModelType, typename PointType>
-list<shared_ptr<Model>> const& ModelIt<ModelType, PointType>::getTreeBranch() const
+std::list<std::shared_ptr<Model>> const& ModelIt<ModelType, PointType>::getTreeBranch() const
 {
     return treeBranch;
 }
@@ -50,8 +43,11 @@ int ModelIt<ModelType, PointType>::getDepth() const
 
 // Operators
 template <typename ModelType, typename PointType>
-shared_ptr<PointType const> ModelIt<ModelType, PointType>::getSharedPointer()
+std::shared_ptr<PointType const> ModelIt<ModelType, PointType>::getSharedPointer()
 {
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+
     shared_ptr<LeafType> const leaf = static_pointer_cast<LeafType>(treeBranch.back());
     return leaf->getPointAddress();
 }
@@ -60,6 +56,9 @@ shared_ptr<PointType const> ModelIt<ModelType, PointType>::getSharedPointer()
 template <typename ModelType, typename PointType>
 PointType const& ModelIt<ModelType, PointType>::operator*()
 {
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+
     shared_ptr<LeafType> const leaf = static_pointer_cast<LeafType>(treeBranch.back());
     return leaf->getPoint();
 }
@@ -68,6 +67,9 @@ PointType const& ModelIt<ModelType, PointType>::operator*()
 template <typename ModelType, typename PointType>
 PointType const* ModelIt<ModelType, PointType>::operator->()
 {
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+
     shared_ptr<LeafType> const leaf = static_pointer_cast<LeafType>(treeBranch.back());
     return &(leaf->getPoint());
 }
@@ -76,6 +78,9 @@ PointType const* ModelIt<ModelType, PointType>::operator->()
 template <typename ModelType, typename PointType>
 ModelIt<ModelType, PointType>& ModelIt<ModelType, PointType>::operator++()
 {
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+
     ModelType* lastVisited = treeBranch.back().get();
     treeBranch.pop_back();
     --depth;
@@ -157,8 +162,12 @@ bool ModelIt<ModelType, PointType>::operator!=(const ModelIt& rhs)
 template<typename ModelType,
          typename IteratorType = typename std::conditional<std::is_const<ModelType>::value, ModelConstIterator, ModelIterator>::type,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-IteratorType pointsBegin(boost::shared_ptr<ModelType> pModel)
+IteratorType pointsBegin(std::shared_ptr<ModelType> pModel)
 {
+    using std::list;
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+
     list<shared_ptr<ModelType>> ptrList(1, pModel);
     int depth = 1;
 
@@ -176,15 +185,18 @@ IteratorType pointsBegin(boost::shared_ptr<ModelType> pModel)
 template<typename ModelType,
          typename IteratorType = typename std::conditional<std::is_const<ModelType>::value, ModelConstIterator, ModelIterator>::type,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-IteratorType pointsEnd(boost::shared_ptr<ModelType> pModel)
+IteratorType pointsEnd(std::shared_ptr<ModelType> pModel)
 {
+    using std::list;
+    using std::shared_ptr;
+
     return IteratorType(list<shared_ptr<ModelType>>{});
 }
 
 
 template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-double getDistance(shared_ptr<ModelType> pModel0, shared_ptr<ModelType> pModel1, int outputID)
+double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, int outputID)
 {
     auto const mBegin0 = pointsBegin(pModel0), mEnd0 = pointsEnd(pModel0);
     auto const mBegin1 = pointsBegin(pModel1), mEnd1 = pointsEnd(pModel1);

@@ -1,23 +1,12 @@
 
 #include <vector>
-using std::vector;
 #include <string>
-using std::string;
-#include <sstream>
-using std::stringstream;
 #include <iostream>
-using std::cerr;
-using std::endl;
 #include <fstream>
-using std::ifstream;
-#include <boost/shared_ptr.hpp>
-using boost::shared_ptr;
+#include <memory>
 #include<boost/archive/text_iarchive.hpp>
-using boost::archive::text_iarchive;
 #include<boost/archive/text_oarchive.hpp>
-using boost::archive::text_oarchive;
 #include <cocotte/datatypes.h>
-using Cocotte::DataPoint;
 #include <cocotte/models/models.hh>
 #include <cocotte/modellist.h>
 #include <cocotte/learner.h>
@@ -28,7 +17,8 @@ namespace Cocotte {
 
 // Constructor
 template <typename ApproximatorType>
-Learner<ApproximatorType>::Learner(vector<string> const& iNames, vector<vector<string>> const& oNames):
+Learner<ApproximatorType>::Learner(std::vector<std::string> const& iNames,
+                                   std::vector<std::vector<std::string>> const& oNames):
     inputNames(iNames), outputNames(oNames), nbOutputs(oNames.size())
 {
     int const nbInputDims = iNames.size();
@@ -43,14 +33,14 @@ Learner<ApproximatorType>::Learner(vector<string> const& iNames, vector<vector<s
 
 // Accessors
 template <typename ApproximatorType>
-vector<string> Learner<ApproximatorType>::getInputNames() const
+std::vector<std::string> Learner<ApproximatorType>::getInputNames() const
 {
     return inputNames;
 }
 
 
 template <typename ApproximatorType>
-vector<vector<string>> Learner<ApproximatorType>::getOutputNames() const
+std::vector<std::vector<std::string>> Learner<ApproximatorType>::getOutputNames() const
 {
     return outputNames;
 }
@@ -75,6 +65,9 @@ size_t Learner<ApproximatorType>::getComplexity(size_t i, size_t j) const
 template <typename ApproximatorType>
 Learner<ApproximatorType>::Learner(string fileName)
 {
+    using std::ifstream;
+    using boost::archive::text_iarchive;
+
     ifstream inputFile(fileName);
     if (!inputFile.is_open())
     {
@@ -90,6 +83,9 @@ Learner<ApproximatorType>::Learner(string fileName)
 template <typename ApproximatorType>
 void Learner<ApproximatorType>::dumpModels(string fileName)
 {
+    using std::ofstream;
+    using boost::archive::text_oarchive;
+
     ofstream outputFile(fileName);
     if (!outputFile.is_open())
     {
@@ -109,7 +105,9 @@ void Learner<ApproximatorType>::dumpModels(string fileName)
 template <typename ApproximatorType>
 void Learner<ApproximatorType>::addDataPoint(DataPoint const& point)
 {
-    data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
+    using std::shared_ptr;
+
+    data.push_back(shared_ptr<DataPoint const>(new DataPoint(point)));
 
     for (auto& mList : modelLists)
     {
@@ -121,12 +119,15 @@ void Learner<ApproximatorType>::addDataPoint(DataPoint const& point)
 template <typename ApproximatorType>
 void Learner<ApproximatorType>::addDataPoints(vector<DataPoint> const& points)
 {
+    using std::vector;
+    using std::shared_ptr;
+
     data.reserve(data.size() + points.size());
-    vector<boost::shared_ptr<DataPoint const>> pointers;
+    vector<shared_ptr<DataPoint const>> pointers;
 
     for (auto const& point : points)
     {
-        data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
+        data.push_back(shared_ptr<DataPoint const>(new DataPoint(point)));
         pointers.push_back(data.back());
     }
 
@@ -141,6 +142,10 @@ void Learner<ApproximatorType>::addDataPoints(vector<DataPoint> const& points)
 template <typename ApproximatorType>
 void Learner<ApproximatorType>::removeArtifacts()
 {
+    using std::move;
+    using std::vector;
+    using std::shared_ptr;
+
     for (auto& mList: modelLists)
     {
         // For each old model, we check if all its points could all fit in other models
@@ -161,7 +166,7 @@ void Learner<ApproximatorType>::removeArtifacts()
                 auto const oldList = mList;
 
                 // We build a vector of all datapoints in the first model
-                vector<boost::shared_ptr<DataPoint const>> pointers;
+                vector<shared_ptr<DataPoint const>> pointers;
                 pointers.reserve(firstModel->getNbPoints());
 
                 for (auto mIt = Models::pointsBegin(firstModel), mEnd = Models::pointsEnd(firstModel);
@@ -185,7 +190,7 @@ void Learner<ApproximatorType>::removeArtifacts()
                 {
                     // If it did not work, we try to distribute other models
                     // and stop if no model could be distributed
-                    mList = std::move(oldList);
+                    mList = move(oldList);
                     mList.addModel(firstModel);
                 }
             }
@@ -198,7 +203,9 @@ void Learner<ApproximatorType>::removeArtifacts()
 template <typename ApproximatorType>
 void Learner<ApproximatorType>::addDataPointNoRollback(DataPoint const& point)
 {
-    data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
+    using std::shared_ptr;
+
+    data.push_back(shared_ptr<DataPoint const>(new DataPoint(point)));
 
     for (auto& mList : modelLists)
     {
@@ -208,14 +215,17 @@ void Learner<ApproximatorType>::addDataPointNoRollback(DataPoint const& point)
 
 
 template <typename ApproximatorType>
-void Learner<ApproximatorType>::addDataPointsNoRollback(vector<DataPoint> const& points)
+void Learner<ApproximatorType>::addDataPointsNoRollback(std::vector<DataPoint> const& points)
 {
+    using std::vector;
+    using std::shared_ptr;
+
     data.reserve(data.size() + points.size());
-    vector<boost::shared_ptr<DataPoint const>> pointers;
+    vector<shared_ptr<DataPoint const>> pointers;
 
     for (auto const& point : points)
     {
-        data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
+        data.push_back(shared_ptr<DataPoint const>(new DataPoint(point)));
         pointers.push_back(data.back());
     }
 
@@ -243,7 +253,9 @@ void Learner<ApproximatorType>::restructureModels()
 template <typename ApproximatorType>
 void Learner<ApproximatorType>::addDataPointIncremental(DataPoint const& point)
 {
-    data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
+    using std::shared_ptr;
+
+    data.push_back(shared_ptr<DataPoint const>(new DataPoint(point)));
 
     for (auto& mList : modelLists)
     {
@@ -256,14 +268,17 @@ void Learner<ApproximatorType>::addDataPointIncremental(DataPoint const& point)
 
 
 template <typename ApproximatorType>
-void Learner<ApproximatorType>::addDataPointsIncremental(vector<DataPoint> const& points)
+void Learner<ApproximatorType>::addDataPointsIncremental(std::vector<DataPoint> const& points)
 {
+    using std::vector;
+    using std::shared_ptr;
+
     data.reserve(data.size() + points.size());
-    vector<boost::shared_ptr<DataPoint const>> pointers;
+    vector<shared_ptr<DataPoint const>> pointers;
 
     for (auto const& point : points)
     {
-        data.push_back(boost::shared_ptr<DataPoint const>(new DataPoint(point)));
+        data.push_back(shared_ptr<DataPoint const>(new DataPoint(point)));
         pointers.push_back(data.back());
     }
 
@@ -279,8 +294,12 @@ void Learner<ApproximatorType>::addDataPointsIncremental(vector<DataPoint> const
 
 // Predicts outputs for new points
 template <typename ApproximatorType>
-vector<vector<vector<double>>> Learner<ApproximatorType>::predict(vector<vector<double>> const& x, bool shouldObtainModelIDs, vector<vector<int>> *modelIDs)
+std::vector<std::vector<std::vector<double>>> Learner<ApproximatorType>::predict(std::vector<std::vector<double>> const& x,
+                                                                                 bool shouldObtainModelIDs,
+                                                                                 std::vector<std::vector<int>> *modelIDs)
 {
+    using std::vector;
+
     int const nbPoints = x.size();
     vector<vector<vector<double>>> rawPredictions;
     rawPredictions.reserve(nbOutputs);
@@ -319,7 +338,8 @@ vector<vector<vector<double>>> Learner<ApproximatorType>::predict(vector<vector<
 
 
 template <typename ApproximatorType>
-vector<vector<vector<double>>> Learner<ApproximatorType>::predict(vector<vector<double>> const& x, vector<vector<int>> *modelIDs)
+std::vector<std::vector<std::vector<double>>> Learner<ApproximatorType>::predict(std::vector<std::vector<double>> const& x,
+                                                                                 std::vector<std::vector<int>> *modelIDs)
 {
     return predict(x, true, modelIDs);
 }

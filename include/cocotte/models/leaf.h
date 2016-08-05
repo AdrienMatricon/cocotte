@@ -3,7 +3,7 @@
 
 
 #include <vector>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/shared_ptr.hpp>
@@ -24,14 +24,14 @@ class Leaf : public Model
 private:
 
     std::vector<Approximators::Form> forms;
-    boost::shared_ptr<DataPoint const> pointAddress;
+    std::shared_ptr<DataPoint const> pointAddress;
     bool temporary;
 
 
 public:
 
     Leaf() = default;
-    Leaf(std::vector<Approximators::Form> const& forms, boost::shared_ptr<DataPoint const> pointAddress, bool temporary = false);
+    Leaf(std::vector<Approximators::Form> const& forms, std::shared_ptr<DataPoint const> pointAddress, bool temporary = false);
     virtual bool isLeaf() const override;
     virtual bool isTemporary() const override;
     virtual size_t getNbPoints() const override;
@@ -39,7 +39,7 @@ public:
 
     DataPoint const& getPoint();
     DataPoint const& getPoint() const;
-    boost::shared_ptr<DataPoint const> getPointAddress() const;
+    std::shared_ptr<DataPoint const> getPointAddress() const;
 
     // Serialization
     template<typename Archive>

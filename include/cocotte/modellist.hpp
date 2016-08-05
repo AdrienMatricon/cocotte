@@ -1,42 +1,18 @@
 
 #include <algorithm>
-using std::min;
-using std::max;
 #include <list>
-using std::list;
 #include <deque>
-using std::deque;
 #include <queue>
-using std::priority_queue;
 #include <vector>
-using std::vector;
 #include <set>
-using std::set;
-#include <boost/unordered_set.hpp>
-using boost::unordered_set;
+#include <unordered_set>
 #include <utility>
-using std::pair;
-using std::make_pair;
-#include <boost/shared_ptr.hpp>
-using boost::shared_ptr;
-using boost::static_pointer_cast;
-using boost::const_pointer_cast;
-#include <algorithm>
-using std::sort;
+#include <memory>
 #include <string>
-using std::string;
 #include <sstream>
-using std::stringstream;
 #include <iostream>
-using std::endl;
 #include <cocotte/approximators/approximator.h>
-using Cocotte::Approximators::Form;
 #include <cocotte/models/models.hh>
-using Cocotte::Models::Model;
-using Cocotte::Models::Leaf;
-using Cocotte::Models::Node;
-using Cocotte::Models::ModelIterator;
-using Cocotte::Models::ModelConstIterator;
 #include <cocotte/modellist.h>
 
 namespace Cocotte {
@@ -80,7 +56,7 @@ size_t ModelList<ApproximatorType>::getComplexity(size_t j) const
 
 // Adding and removing models
 template <typename ApproximatorType>
-void ModelList<ApproximatorType>::addModel(shared_ptr<Model> model)
+void ModelList<ApproximatorType>::addModel(std::shared_ptr<Models::Model> model)
 {
     models.push_back(model);
     ++nbModels;
@@ -89,7 +65,7 @@ void ModelList<ApproximatorType>::addModel(shared_ptr<Model> model)
 
 
 template <typename ApproximatorType>
-shared_ptr<Model> ModelList<ApproximatorType>::firstModel()
+std::shared_ptr<Models::Model> ModelList<ApproximatorType>::firstModel()
 {
     return models.front();
 }
@@ -112,12 +88,16 @@ void ModelList<ApproximatorType>::removeFirstModel()
 // or addToExistingModelsOnly (new leaves merged into old models first) is set to true.
 // In that case, merging goes faster and new leaves/nodes are marked as temporary
 template <typename ApproximatorType>
-void ModelList<ApproximatorType>::addPoint(shared_ptr<DataPoint const> pointAddress, bool noRollback)
+void ModelList<ApproximatorType>::addPoint(std::shared_ptr<DataPoint const> pointAddress, bool noRollback)
 {
-    models = std::move(mergeAsMuchAsPossible(list<shared_ptr<Model>>(1, createLeaf(pointAddress, noRollback)),
-                                             std::move(models),
-                                             noRollback,
-                                             true));
+    using std::move;
+    using std::list;
+    using std::shared_ptr;
+
+    models = move(mergeAsMuchAsPossible(list<shared_ptr<Models::Model>>(1, createLeaf(pointAddress, noRollback)),
+                                        move(models),
+                                        noRollback,
+                                        true));
 
     trainedClassifier = false;
     nbModels = models.size();
@@ -125,19 +105,23 @@ void ModelList<ApproximatorType>::addPoint(shared_ptr<DataPoint const> pointAddr
 
 
 template <typename ApproximatorType>
-void ModelList<ApproximatorType>::addPoints(vector<shared_ptr<DataPoint const>> const& pointAddresses,
+void ModelList<ApproximatorType>::addPoints(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses,
                                             bool noRollback,
                                             bool addToExistingModelsOnly)
 {
+    using std::move;
+    using std::list;
+    using std::shared_ptr;
+
     bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
 
-    list<shared_ptr<Model>> newLeaves;
+    list<shared_ptr<Models::Model>> newLeaves;
     for (auto const& pointAddress : pointAddresses)
     {
         newLeaves.push_back(createLeaf(pointAddress, markAsTemporary));
     }
 
-    models = std::move(mergeAsMuchAsPossible(std::move(newLeaves), std::move(models), noRollback, addToExistingModelsOnly));
+    models = move(mergeAsMuchAsPossible(move(newLeaves), move(models), noRollback, addToExistingModelsOnly));
 
     trainedClassifier = false;
     nbModels = models.size();
@@ -150,9 +134,18 @@ void ModelList<ApproximatorType>::addPoints(vector<shared_ptr<DataPoint const>> 
 template <typename ApproximatorType>
 void ModelList<ApproximatorType>::restructureModels()
 {
+    using std::vector;
+    using std::list;
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+    using Models::Model;
+    using Models::Leaf;
+    using Models::Node;
+
+
     trainedClassifier = false;
 
-    list<shared_ptr<Model>> toProcess = std::move(models);
+    list<shared_ptr<Model>> toProcess = move(models);
     models = list<shared_ptr<Model>>{};
     nbModels = 0;
 
@@ -194,21 +187,25 @@ void ModelList<ApproximatorType>::restructureModels()
 template <typename ApproximatorType>
 void ModelList<ApproximatorType>::trainClassifier()
 {
+    using std::vector;
+    using cv::Mat;
+    using cv::RandomTreeParams;
+
     int const nbVars = Models::pointsBegin(models.front())->x.size();
 
     vector<float> priors(nbModels, 1.f);
-    cv::RandomTreeParams params(nbModels*2,                         // max depth
-                                2,                                  // min sample count
-                                0.f,                                // regression accuracy: N/A here
-                                false,                              // compute surrogate split, no missing data
-                                15,                                 // max number of categories (use sub-optimal algorithm for larger numbers)
-                                priors.data(),                      // the array of priors
-                                false,                              // calculate variable importance
-                                nbVars,                             // number of variables randomly selected at node and used to find the best split(s).
-                                1000,                               // max number of trees in the forest
-                                0.01f,                              // forest accuracy
-                                CV_TERMCRIT_ITER |	CV_TERMCRIT_EPS // termination cirteria
-                                );
+    RandomTreeParams params(nbModels*2,                         // max depth
+                            2,                                  // min sample count
+                            0.f,                                // regression accuracy: N/A here
+                            false,                              // compute surrogate split, no missing data
+                            15,                                 // max number of categories (use sub-optimal algorithm for larger numbers)
+                            priors.data(),                      // the array of priors
+                            false,                              // calculate variable importance
+                            nbVars,                             // number of variables randomly selected at node and used to find the best split(s).
+                            1000,                               // max number of trees in the forest
+                            0.01f,                              // forest accuracy
+                            CV_TERMCRIT_ITER |	CV_TERMCRIT_EPS // termination cirteria
+                            );
 
     int nbPoints = 0;
     for (auto const& model : models)
@@ -217,8 +214,8 @@ void ModelList<ApproximatorType>::trainClassifier()
     }
 
 
-    cv::Mat data(nbPoints, nbVars, CV_32F);
-    cv::Mat classification(nbPoints,1, CV_32F);
+    Mat data(nbPoints, nbVars, CV_32F);
+    Mat classification(nbPoints,1, CV_32F);
 
     {
         float label = 0.f;
@@ -241,14 +238,17 @@ void ModelList<ApproximatorType>::trainClassifier()
         }
     }
 
-    classifier.train(data, CV_ROW_SAMPLE, classification, cv::Mat(), cv::Mat(), cv::Mat(), cv::Mat(), params);
+    classifier.train(data, CV_ROW_SAMPLE, classification, Mat(), Mat(), Mat(), Mat(), params);
     trainedClassifier = true;
 }
 
 
 template <typename ApproximatorType>
-vector<int> ModelList<ApproximatorType>::selectModels(vector<vector<double>> const& points)
+std::vector<int> ModelList<ApproximatorType>::selectModels(std::vector<std::vector<double>> const& points)
 {
+    using cv::Mat;
+    using std::vector;
+
     size_t const nbPoints = points.size();
     size_t const nbVars = points[0].size();
     vector<int> result(nbPoints);
@@ -260,7 +260,7 @@ vector<int> ModelList<ApproximatorType>::selectModels(vector<vector<double>> con
 
     for (size_t i = 0; i < nbPoints; ++i)
     {
-        cv::Mat point(1, nbVars, CV_32F);
+        Mat point(1, nbVars, CV_32F);
         for (size_t j = 0; j < nbVars; ++j)
         {
             point.at<float>(0,j) = points[i][j];
@@ -274,8 +274,12 @@ vector<int> ModelList<ApproximatorType>::selectModels(vector<vector<double>> con
 
 
 template <typename ApproximatorType>
-vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double>> const& points, bool fillModelIDs, vector<int> *modelIDs)
+std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vector<std::vector<double>> const& points,
+                                                                      bool fillModelIDs,
+                                                                      std::vector<int> *modelIDs)
 {
+    using std::vector;
+
     size_t const nbPoints = points.size();
     vector<vector<vector<double>>> possibleValues;
     possibleValues.reserve(nbModels);
@@ -315,7 +319,7 @@ vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double
 
 
 template <typename ApproximatorType>
-vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double>> const& points, vector<int> *modelIDs)
+std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vector<std::vector<double>> const& points, std::vector<int> *modelIDs)
 {
     return predict(points, true, modelIDs);
 }
@@ -323,8 +327,10 @@ vector<vector<double>> ModelList<ApproximatorType>::predict(vector<vector<double
 
 // Returns a string that details the forms in the list
 template <typename ApproximatorType>
-string ModelList<ApproximatorType>::toString(vector<string> inputNames, vector<string> outputNames) const
+std::string ModelList<ApproximatorType>::toString(std::vector<std::string> inputNames, std::vector<std::string> outputNames) const
 {
+    using std::stringstream;
+
     auto const mEnd = models.end();
     auto mIt = models.begin();
 
@@ -358,8 +364,14 @@ string ModelList<ApproximatorType>::toString(vector<string> inputNames, vector<s
 
 // Utility function
 template <typename ApproximatorType>
-shared_ptr<Model> ModelList<ApproximatorType>::createLeaf(boost::shared_ptr<DataPoint const> point, bool markAsTemporary)
+std::shared_ptr<Models::Model> ModelList<ApproximatorType>::createLeaf(std::shared_ptr<DataPoint const> point, bool markAsTemporary)
 {
+    using std::vector;
+    using std::shared_ptr;
+    using Approximators::Form;
+    using Models::Model;
+    using Models::Leaf;
+
     vector<Form> forms;
     forms.reserve(nbOutputDims);
 
@@ -375,8 +387,19 @@ shared_ptr<Model> ModelList<ApproximatorType>::createLeaf(boost::shared_ptr<Data
 // Tries to merge two models into one without increasing complexity
 // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
 template <typename ApproximatorType>
-shared_ptr<Model> ModelList<ApproximatorType>::tryMerge(shared_ptr<Model> model0, shared_ptr<Model> model1, bool markAsTemporary)
+std::shared_ptr<Models::Model> ModelList<ApproximatorType>::tryMerge(std::shared_ptr<Models::Model> model0, std::shared_ptr<Models::Model> model1, bool markAsTemporary)
 {
+    using std::min;
+    using std::list;
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+    using std::const_pointer_cast;
+    using Approximators::Form;
+    using Models::Model;
+    using Models::Leaf;
+    using Models::Node;
+
+
     // We determine if new node should be temporary
     markAsTemporary = (markAsTemporary || model0->isTemporary() || model1->isTemporary());
 
@@ -482,11 +505,25 @@ shared_ptr<Model> ModelList<ApproximatorType>::tryMerge(shared_ptr<Model> model0
 // - addToExistingModelsOnly prevents atomic models from being merged with each other
 //   before being merged to models in independentlyMergedModels
 template <typename ApproximatorType>
-list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<shared_ptr<Model>>&& atomicModels,
-                                                                           list<shared_ptr<Model>>&& independentlyMergedModels,
-                                                                           bool noRollback,
-                                                                           bool addToExistingModelsOnly)
+std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(std::list<std::shared_ptr<Models::Model>>&& atomicModels,
+                                                                                             std::list<std::shared_ptr<Models::Model>>&& independentlyMergedModels,
+                                                                                             bool noRollback,
+                                                                                             bool addToExistingModelsOnly)
 {
+    using std::list;
+    using std::deque;
+    using std::priority_queue;
+    using std::set;
+    using std::unordered_set;
+    using std::pair;
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+    using Models::Model;
+    using Models::Leaf;
+    using Models::Node;
+    using ModelPair = pair<shared_ptr<Model>,shared_ptr<Model>>;
+
+
     // Special cases
     if (atomicModels.empty())
     {
@@ -509,14 +546,13 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
 
 
     // Some definitions first
-    using ModelPair = pair<shared_ptr<Model>,shared_ptr<Model>>;
     bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
 
     set<shared_ptr<Model>> candidateModels;                                     // candidate models for the merging
     unordered_set<shared_ptr<Model>> unavailable;                               // models which have already been merged, or that have been rolled back
 
     deque<pair<double,shared_ptr<Model>>> independentMergesInnerDistances;      // nodes in independently merged models
-                                                                                // and the distances between their children
+    // and the distances between their children
     priority_queue<pair<double, ModelPair>,
             vector<pair<double, ModelPair>>,
             HasGreaterDistance<ModelPair>> candidateDistances;                  // candidate pairs of models, and the distances between them
@@ -577,7 +613,7 @@ list<shared_ptr<Model>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(list<
             }
 
             // We sort queue by increasing distances
-            sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Model>>);
+            sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Models::Model>>);
         }
 
 

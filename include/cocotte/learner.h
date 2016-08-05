@@ -5,7 +5,7 @@
 #include <vector>
 #include <string>
 #include <ostream>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/shared_ptr.hpp>
@@ -28,7 +28,7 @@ private:
     std::vector<std::vector<std::string>> outputNames;
     int nbOutputs;
     std::vector<ModelList<ApproximatorType>> modelLists;
-    std::vector<boost::shared_ptr<DataPoint const>> data;
+    std::vector<std::shared_ptr<DataPoint const>> data;
 
 public:
 

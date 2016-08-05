@@ -47,20 +47,17 @@ While the [Boost Software License][boost-license] and [BSD license][opencv-licen
 #### Getting the files
 Clone the repository, and if necessary switch to the version of COCOTTE you want to be working with using
 ```sh
-# example: git checkout -b master 2016-icdl-epirob
-$ git checkout -b [branchname] [tagname]
+# example: git checkout 2016-icdl-epirob
+$ git checkout [tagname]
 ```
 
 #### Boost
-This code was developed under Boost 1.54 and uses `boost::serialization` to dump models.
-It also uses `boost::shared_ptr` because `std::shared_ptr` is not compatible with `boost::serialization`
-(at least in this version of the Boost library)
-and `boost::unordered_set` because `std::unordered_set` is not compatible with `boost::shared_ptr`.
+This code was developed under Boost 1.59 and uses `boost::serialization` to dump models.
 ```sh
 $ sudo apt-get install libboost-all-dev
 ```
 #### OpenCV
-This code was developed under OpenCV 2.4.8 and uses `cv::RandomTrees` for classification.
+This code was developed under OpenCV 2.4.9 and uses `cv::RandomTrees` for classification.
 ```sh
 $ sudo apt-get install libopencv-dev 
 ```
@@ -78,7 +75,7 @@ $ make COMP=gnu OPT=opt ZLIB=false GMP=false
 There should now be a file `maindirectory/thirdparty/soplex/lib/libsoplex.a`
 
 #### GLPK
-This code was developed under GLPK 4.52 and uses it when Soplex fails.
+This code was developed under GLPK 4.57 and uses it when Soplex fails.
 ```sh
 $ sudo apt-get install libglpk-dev
 ```
