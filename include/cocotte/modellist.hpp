@@ -183,6 +183,76 @@ void ModelList<ApproximatorType>::restructureModels()
 
 
 
+// Checks if for each point there exists a model that could predict it
+template <typename ApproximatorType>
+bool ModelList<ApproximatorType>::canBePredicted(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses)
+{
+    using std::vector;
+
+    for (auto const& pointAddress : pointAddresses)
+    {
+        vector<vector<double>> xVal;
+        {
+            vector<double> xValTemp;
+            xValTemp.reserve(pointAddress->x.size());
+
+            for (auto const& dim : pointAddress->x)
+            {
+                xValTemp.push_back(dim.value);
+            }
+            xVal.push_back(xValTemp);
+        }
+
+        vector<double> tVal, tPrec;
+        {
+            tVal.reserve(pointAddress->t[outputID].size());
+            tPrec.reserve(tVal.size());
+
+            for (auto const& dim : pointAddress->t[outputID])
+            {
+                tVal.push_back(dim.value);
+                tPrec.push_back(dim.precision);
+            }
+        }
+
+        bool cannotBePredicted = true;
+
+        for (auto const& model : models)
+        {
+            bool predictedByThisModel = true;
+            unsigned int i = 0;
+
+            for (auto const& f : model->getForms())
+            {
+                auto prediction = approximator.estimate(f, xVal)[0];
+
+                if (abs(prediction - tVal[i]) > tPrec[i])
+                {
+                    predictedByThisModel = false;
+                    break;
+                }
+
+                ++i;
+            }
+
+            if (predictedByThisModel)
+            {
+                cannotBePredicted = false;
+                break;
+            }
+        }
+
+        if (cannotBePredicted)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
 // Predict the value of a point
 template <typename ApproximatorType>
 void ModelList<ApproximatorType>::trainClassifier()

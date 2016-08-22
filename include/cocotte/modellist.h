@@ -70,6 +70,9 @@ public:
     // (with noRollback and addToExistingModelsOnly set to false)
     void restructureModels();
 
+    // Checks if for each point there exists a model that could predict it
+    bool canBePredicted(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses);
+
     // Predict the value of a point
     void trainClassifier();
     std::vector<unsigned int> selectModels(std::vector<std::vector<double>> const& points);

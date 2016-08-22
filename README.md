@@ -181,7 +181,8 @@ and which should be evaluated.
 #### Files
 - Headers for COCOTTE are in `maindirectory/include/cocotte`
 - Link you code with `maindirectory/lib/libcocotte.a`
-- You might find `maindirectory/include/datasources` and `maindirectory/lib/libcocotte.a` useful, as they are headers and binaries for loading data from a data file and a data structure file.
+- You might find `maindirectory/include/datasources` and `maindirectory/lib/libcocotte.a` useful, as they are headers and binaries for loading data from a data file and a data structure file
+- Do not hesitate to take a look at `maindirectory/src/main.cpp`, which is the code of the COCOTTE executable and which may serve as an example of the use of the COCOTTE library.
 
 #### Data types
 Two data types are defined in `maindirectory/include/cocotte/datatypes.h`:
@@ -210,7 +211,7 @@ Those names are given as vectors, with the same structure as in `Cocotte::DataPo
     * they call `restructureModels()`,
     * they add new points as if by `addDataPoint()` or `addDataPoints()`,
     * they call `removeArtifacts()`.
-- `addDataPointNoRollback()` and `addDataPointsNoRollback()` are allow you to delay computation:
+- `addDataPointNoRollback()` and `addDataPointsNoRollback()` allow you to delay computation:
     * when called, the new training datapoints are simply used to refine existing models, which is potentially faster than improving the model collection as a whole (which may involve rolling back many merges),
     * calling `restructureModels()` leaves `Cocotte::Learner` in the same state as if all datapoints were just added with `addDataPoints()`.
 

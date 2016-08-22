@@ -152,7 +152,7 @@ void Learner<ApproximatorType>::removeArtifacts()
         unsigned int nbModels = mList.getNbModels();
         bool keepGoing = true;
 
-        while (keepGoing && (nbModels >= 2))
+        while (keepGoing && (nbModels > 2))
         {
             keepGoing = false;
 
@@ -175,24 +175,30 @@ void Learner<ApproximatorType>::removeArtifacts()
                     pointers.push_back(mIt.getSharedPointer());
                 }
 
-                // We try to distribute the points into other models
-                mList.addPoints(pointers, true, true);
 
-                unsigned int newNbModels = mList.getNbModels();
-                if (newNbModels < nbModels)
+                // Can we distribute the points into other models ?
                 {
-                    // If it worked, we keep removing artifacts
-                    keepGoing = true;
-                    nbModels = newNbModels;
-                    continue;
+                    // Filter: can the points be predicted by the otherModels
+                    if (mList.canBePredicted(pointers))
+                    {
+                        // If it is the case, we actually try to distribute the points into other models
+                        mList.addPoints(pointers, true, true);
+
+                        unsigned int newNbModels = mList.getNbModels();
+                        if (newNbModels < nbModels)
+                        {
+                            // Success
+                            keepGoing = true;
+                            nbModels = newNbModels;
+                            break;
+                        }
+                    }
                 }
-                else
-                {
-                    // If it did not work, we try to distribute other models
-                    // and stop if no model could be distributed
-                    mList = move(oldList);
-                    mList.addModel(firstModel);
-                }
+
+                // If it did not work, we try to distribute other models
+                // and stop if no model could be distributed
+                mList = move(oldList);
+                mList.addModel(firstModel);
             }
         }
     }
