@@ -19,7 +19,7 @@ public:
 
     virtual bool isLeaf() const = 0;
     virtual bool isTemporary() const = 0;
-    virtual size_t getNbPoints() const = 0;
+    virtual unsigned int getNbPoints() const = 0;
     virtual std::vector<Approximators::Form> const& getForms() = 0;
     virtual ~Model(){}
 

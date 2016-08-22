@@ -29,26 +29,26 @@ namespace Approximators {
 
 // Returns the most complex forms under a certain complexity,
 // for each combination of the formerly used dimensions and at most one other.
-list <list<Form>> Polynomial::getMostComplexForms(UsedDimensions const& formerlyUsedDimensions, int maxComplexity)
+list <list<Form>> Polynomial::getMostComplexForms(UsedDimensions const& formerlyUsedDimensions, unsigned int maxComplexity)
 {
     if (maxComplexity == 1)
     {
         // Only one form possible, a constant
         // (no dimension used, degree 0)
-        Form form(UsedDimensions(formerlyUsedDimensions.getTotalNbDimensions(), list<int>()));
+        Form form(UsedDimensions(formerlyUsedDimensions.getTotalNbDimensions(), list<unsigned int>()));
         form.complexity = 1;
         form.other = 0; // Degree
         return list <list<Form>>(1, list<Form>(1, form));
     }
 
-    int const maxNbDims = formerlyUsedDimensions.getNbUsed() + 1;
+    unsigned int const maxNbDims = formerlyUsedDimensions.getNbUsed() + 1;
     list <list<Form>> result;
 
-    for (int i = 0; i < maxNbDims; ++i)
+    for (unsigned int i = 0; i < maxNbDims; ++i)
     {
-        int const d = i+1;  // number of used dimensions
-        int N = 1;  // degree
-        int c = complexity(N, d);
+        unsigned int const d = i+1;  // number of used dimensions
+        unsigned int N = 1;  // degree
+        unsigned int c = complexity(N, d);
         if (c > maxComplexity)
         {
             break;
@@ -102,12 +102,17 @@ list <list<Form>> Polynomial::getMostComplexForms(UsedDimensions const& formerly
 
 // Tries to fit the points with a form
 // If success, params are stored within the form
-bool Polynomial::tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, int outputID, int dimInOutput)
+bool Polynomial::tryFitGLPK(Form& form,
+                            unsigned int nbPoints,
+                            Models::ModelConstIterator mBegin,
+                            Models::ModelConstIterator mEnd,
+                            unsigned int outputID,
+                            unsigned int dimInOutput)
 {
     auto const usedInputDimIds = form.usedDimensions.getIds();
-    int const nbUsedInputDims = form.usedDimensions.getNbUsed();
-    int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
-    int const degree = form.other;
+    unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
+    unsigned int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
+    unsigned int const degree = form.other;
     double const quantum = 1.e-6;   // small value for double comparison and to avoid dividing by 0
 
 
@@ -151,8 +156,8 @@ bool Polynomial::tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator
     lp = glp_create_prob();
     glp_set_obj_dir(lp, GLP_MIN);
 
-    int const nbTerms = getNbTerms(nbUsedInputDims, degree);
-    int const nbVars = nbTerms + 1;
+    unsigned int const nbTerms = getNbTerms(nbUsedInputDims, degree);
+    unsigned int const nbVars = nbTerms + 1;
 
     // We add variables
     glp_add_cols(lp, nbVars);
@@ -162,17 +167,17 @@ bool Polynomial::tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator
     glp_set_obj_coef(lp, 1, 1.0);
 
     // Unbound parameters
-    int const supI = nbVars + 1;
-    for (int i = 2; i < supI; ++i)
+    unsigned int const supI = nbVars + 1;
+    for (unsigned int i = 2; i < supI; ++i)
     {
         glp_set_col_bnds(lp, i, GLP_FR, 0.0, 0.0);
         glp_set_obj_coef(lp, i, 0.0);
     }
 
     // We add constraints (2 per datapoint)
-    int const nbConstraints = 2*nbPoints;
+    unsigned int const nbConstraints = 2*nbPoints;
     glp_add_rows(lp, nbConstraints);
-    int const nbCoeffs = nbVars * nbConstraints;
+    unsigned int const nbCoeffs = nbVars * nbConstraints;
     int iMat[1+nbCoeffs];       // Coefficient constraint IDs
     int jMat[1+nbCoeffs];       // Coefficient variable IDs
     double cMat[1+nbCoeffs];    // Coefficient values
@@ -205,7 +210,7 @@ bool Polynomial::tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator
             cMat[coeffId] = normalizedOutputPrec;
             ++varId; ++coeffId;
 
-            for (int i = 0; i < nbTerms; ++i)
+            for (unsigned int i = 0; i < nbTerms; ++i)
             {
                 iMat[coeffId] = constraintId;
                 jMat[coeffId] = varId;
@@ -227,7 +232,7 @@ bool Polynomial::tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator
             cMat[coeffId] = -normalizedOutputPrec;
             ++varId; ++coeffId;
 
-            for (int i = 0; i < nbTerms; ++i)
+            for (unsigned int i = 0; i < nbTerms; ++i)
             {
                 iMat[coeffId] = constraintId;
                 jMat[coeffId] = varId;
@@ -262,7 +267,7 @@ bool Polynomial::tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator
         return false;   // The solution does not satisfy all constraints
     }
 
-    for (int i = 2; i < supI; ++i)
+    for (unsigned int i = 2; i < supI; ++i)
     {
         form.params.push_back(glp_get_col_prim(lp, i));
     }
@@ -274,12 +279,12 @@ bool Polynomial::tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator
 
 
 
-bool Polynomial::tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, int outputID, int dimInOutput)
+bool Polynomial::tryFit(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput)
 {
     auto const usedInputDimIds = form.usedDimensions.getIds();
-    int const nbUsedInputDims = form.usedDimensions.getNbUsed();
-    int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
-    int const degree = form.other;
+    unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
+    unsigned int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
+    unsigned int const degree = form.other;
     double const quantum = 1.e-6;   // small value for double comparison and to avoid dividing by 0
 
 
@@ -325,13 +330,13 @@ bool Polynomial::tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBe
     problem.setIntParam(soplex::SoPlex::OBJSENSE, soplex::SoPlex::OBJSENSE_MINIMIZE);
     problem.setIntParam(soplex::SoPlex::VERBOSITY, soplex::SoPlex::VERBOSITY_ERROR);
 
-    int const nbTerms = getNbTerms(nbUsedInputDims, degree);
-    int const nbVars = nbTerms + 1;
+    unsigned int const nbTerms = getNbTerms(nbUsedInputDims, degree);
+    unsigned int const nbVars = nbTerms + 1;
 
     // We add variables
     soplex::DSVector dummycol(0);
     problem.addColReal(soplex::LPCol(1.0, dummycol, soplex::infinity, 0.0));    // positive slack variable equal to the cost function
-    for (int i = 0; i < nbTerms; ++i)
+    for (unsigned int i = 0; i < nbTerms; ++i)
     {
         problem.addColReal(soplex::LPCol(0., dummycol, soplex::infinity, -soplex::infinity));  // unbound parameters
     }
@@ -361,7 +366,7 @@ bool Polynomial::tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBe
         {
             row.add(0, normalizedOutputPrec);    // slack
 
-            for (int i = 0; i < nbTerms; ++i)
+            for (unsigned int i = 0; i < nbTerms; ++i)
             {
                row.add(i+1, terms[i]);
             }
@@ -374,7 +379,7 @@ bool Polynomial::tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBe
         {
             row.add(0, -normalizedOutputPrec);   // slack
 
-            for (int i = 0; i < nbTerms; ++i)
+            for (unsigned int i = 0; i < nbTerms; ++i)
             {
                 row.add(i+1, terms[i]);
             }
@@ -408,7 +413,7 @@ bool Polynomial::tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBe
         return false;   // The solution does not satisfy all constraints
     }
 
-    for (int i = 1; i < nbVars; ++i)
+    for (unsigned int i = 1; i < nbVars; ++i)
     {
         form.params.push_back(primal[i]);
     }
@@ -417,9 +422,9 @@ bool Polynomial::tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBe
 }
 
 
-Form Polynomial::fitOnePoint(double t, int nbDims)
+Form Polynomial::fitOnePoint(double t, unsigned int nbDims)
 {
-    Form form (UsedDimensions(nbDims, list<int>(), 0));
+    Form form (UsedDimensions(nbDims, list<unsigned int>(), 0));
     form.complexity = 1;
     form.other = 0;
     form.params = vector<double>{t,1};
@@ -431,9 +436,9 @@ Form Polynomial::fitOnePoint(double t, int nbDims)
 // Estimates the value for the given inputs
 vector<double> Polynomial::estimate(Form const&form, vector<vector<double>> const& points)
 {
-    int const nbPoints = points.size();
-    int const nbDims = form.usedDimensions.getNbUsed();
-    int const degree = form.other;
+    unsigned int const nbPoints = points.size();
+    unsigned int const nbDims = form.usedDimensions.getNbUsed();
+    unsigned int const degree = form.other;
 
     auto const pBegin = form.params.begin();
 
@@ -445,10 +450,10 @@ vector<double> Polynomial::estimate(Form const&form, vector<vector<double>> cons
     // Selecting dimensions and normalizing
     {
         processedPoints.reserve(nbPoints);
-        list<int> const& dimIds = form.usedDimensions.getIds();
+        list<unsigned int> const& dimIds = form.usedDimensions.getIds();
         auto const dBegin = dimIds.begin(), dEnd = dimIds.end();
 
-        for (int i = 0; i < nbPoints; ++i)
+        for (unsigned int i = 0; i < nbPoints; ++i)
         {
             vector<double> const& currentPoint = points[i];
             vector<double> currentProcessed;
@@ -490,8 +495,8 @@ vector<double> Polynomial::estimate(Form const&form, vector<vector<double>> cons
 // Returns the form as a readable string (same order as getTerms)
 string Polynomial::formToString(Form const& form, vector<string> inputNames)
 {
-    int const nbDims = form.usedDimensions.getNbUsed();
-    int const degree = form.other;
+    unsigned int const nbDims = form.usedDimensions.getNbUsed();
+    unsigned int const degree = form.other;
 
     // First we select the variable names
     vector<string> dimNames;
@@ -513,7 +518,7 @@ string Polynomial::formToString(Form const& form, vector<string> inputNames)
         result += dimNames[0];
     }
 
-    for (int i = 1; i < nbDims; ++i)
+    for (unsigned int i = 1; i < nbDims; ++i)
     {
         result += "," + dimNames[i];
     }
@@ -525,7 +530,7 @@ string Polynomial::formToString(Form const& form, vector<string> inputNames)
 
 
 // Evaluates all terms of the polynomial and returns them as a vector
-vector<double> Polynomial::getTerms(vector<double> const& vals, int nbDims, int degree)
+vector<double> Polynomial::getTerms(vector<double> const& vals, unsigned int nbDims, unsigned int degree)
 {
     // We handle trivial cases first
     if (degree < 2)
@@ -543,7 +548,7 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, int nbDims, int 
 
     // We create a vector terms such that
     // terms[i] contains all terms of degree i
-    int const nbTermsForOneDim = degree + 1;
+    unsigned int const nbTermsForOneDim = degree + 1;
     vector<list<double>> terms;
     terms.reserve(nbTermsForOneDim);
 
@@ -557,7 +562,7 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, int nbDims, int 
         terms.push_back(list<double>(1, 1.));
         terms.push_back(list<double>(1, temp));
 
-        for (int N = 2; N < nbTermsForOneDim; ++N)
+        for (unsigned int N = 2; N < nbTermsForOneDim; ++N)
         {
             temp *= val;
             terms.push_back(list<double>(1, temp));
@@ -577,11 +582,11 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, int nbDims, int 
         {
             newTerms[1].push_back(temp);
 
-            int const endLoop = degree;
-            for (int M = 1; M < endLoop; ++M)
+            unsigned int const endLoop = degree;
+            for (unsigned int M = 1; M < endLoop; ++M)
             {
                 // M is the degree in the old dimensions
-                int const newDeg = M + 1;
+                unsigned int const newDeg = M + 1;
                 for (auto& term : terms[M])
                 {
                     newTerms[newDeg].push_back(term * temp);
@@ -590,17 +595,17 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, int nbDims, int 
         }
 
         // We add all other terms
-        for (int N = 2; N < nbTermsForOneDim; ++N)
+        for (unsigned int N = 2; N < nbTermsForOneDim; ++N)
         {
             // N is the degree in the new dimension
             temp *= val;
             newTerms[N].push_back(temp);
 
-            int const endLoop = degree - N + 1;
-            for (int M = 1; M < endLoop; ++M)
+            unsigned int const endLoop = degree - N + 1;
+            for (unsigned int M = 1; M < endLoop; ++M)
             {
                 // M is the degree in the old dimensions
-                int const newDeg = M + N;
+                unsigned int const newDeg = M + N;
                 for (auto& term : terms[M])
                 {
                     newTerms[newDeg].push_back(term * temp);
@@ -624,14 +629,14 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, int nbDims, int 
 
 
 // Number of terms returned by getTerms
-int Polynomial::getNbTerms(int nbDims, int degree)
+unsigned int Polynomial::getNbTerms(unsigned int nbDims, unsigned int degree)
 {
     // nbDims among degree + nbDims
-    int numerator = 1;
-    int denominator = 1;
-    int const sum = nbDims + degree;
+    unsigned int numerator = 1;
+    unsigned int denominator = 1;
+    unsigned int const sum = nbDims + degree;
 
-    for (int i = 0; i < nbDims; ++i)
+    for (unsigned int i = 0; i < nbDims; ++i)
     {
         numerator *= sum - i;
         denominator *= nbDims - i;
@@ -645,9 +650,9 @@ int Polynomial::getNbTerms(int nbDims, int degree)
 
 
 // Complexity definition
-int Polynomial::complexity(int degree, int nbUsedDimensions)
+unsigned int Polynomial::complexity(unsigned int degree, unsigned int nbUsedDimensions)
 {
-    int const nbApproximablePoints = (degree * nbUsedDimensions) + 1;
+    unsigned int const nbApproximablePoints = (degree * nbUsedDimensions) + 1;
     return nbApproximablePoints;
 }
 

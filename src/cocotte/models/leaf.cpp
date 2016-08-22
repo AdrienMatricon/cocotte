@@ -28,7 +28,7 @@ bool Leaf::isTemporary() const
 }
 
 
-size_t Leaf::getNbPoints() const
+unsigned int Leaf::getNbPoints() const
 {
     return 1;
 }

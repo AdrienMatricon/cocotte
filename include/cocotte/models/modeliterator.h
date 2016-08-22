@@ -27,7 +27,7 @@ class ModelIt : public std::iterator<std::input_iterator_tag, PointType>
 private:
 
     std::list<std::shared_ptr<ModelType>> treeBranch;
-    int depth = 0;
+    unsigned int depth = 0;
 
 
 public:
@@ -36,12 +36,12 @@ public:
     using LeafType = typename std::conditional<std::is_const<ModelType>::value, Leaf const, Leaf>::type;
 
     // Constructors
-    ModelIt(std::list<std::shared_ptr<ModelType>> treeBranch, int depth=0);
+    ModelIt(std::list<std::shared_ptr<ModelType>> treeBranch, unsigned int depth=0);
     ModelIt(ModelIt const& mIt);
 
     // Accessors
     std::list<std::shared_ptr<Model>> const& getTreeBranch() const;
-    int getDepth() const;
+    unsigned int getDepth() const;
 
     // Operators
     std::shared_ptr<PointType const> getSharedPointer();
@@ -74,9 +74,9 @@ IteratorType pointsEnd(std::shared_ptr<ModelType> pModel);
 
 template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, int outputID);
+double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, unsigned int outputID);
 
-inline double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, int outputID);
+inline double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, unsigned int outputID);
 
 
 

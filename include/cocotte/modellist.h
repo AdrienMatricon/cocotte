@@ -30,10 +30,10 @@ private:
     // - each node contains a form of the approximator that explains all points under it
     std::list<std::shared_ptr<Models::Model>> models;
 
-    size_t outputID;            // ID of the output in the DataPoint
-    size_t nbInputDims;         // number of dimensions in the input
-    size_t nbOutputDims;        // number of dimensions in the output
-    size_t nbModels = 0;
+    unsigned int outputID;            // ID of the output in the DataPoint
+    unsigned int nbInputDims;         // number of dimensions in the input
+    unsigned int nbOutputDims;        // number of dimensions in the output
+    unsigned int nbModels = 0;
 
     cv::RandomTrees classifier;
     bool trainedClassifier = false;
@@ -43,11 +43,11 @@ public:
 
     //Constructor
     ModelList() = default;
-    explicit ModelList(int ouputID, int nbInputDims, int nbOutputDims);
+    explicit ModelList(unsigned int ouputID, unsigned int nbInputDims, unsigned int nbOutputDims);
 
     // Accessors
-    size_t getNbModels() const;
-    size_t getComplexity(size_t j) const;
+    unsigned int getNbModels() const;
+    unsigned int getComplexity(unsigned int j) const;
 
 
     // Adding and removing models
@@ -72,11 +72,11 @@ public:
 
     // Predict the value of a point
     void trainClassifier();
-    std::vector<int> selectModels(std::vector<std::vector<double>> const& points);
+    std::vector<unsigned int> selectModels(std::vector<std::vector<double>> const& points);
     std::vector<std::vector<double>> predict(std::vector<std::vector<double>> const& points,
                                              bool fillModelIDs = false,
-                                             std::vector<int> *modelIDs = nullptr);
-    std::vector<std::vector<double>> predict(std::vector<std::vector<double>> const& points, std::vector<int> *modelIDs);
+                                             std::vector<unsigned int> *modelIDs = nullptr);
+    std::vector<std::vector<double>> predict(std::vector<std::vector<double>> const& points, std::vector<unsigned int> *modelIDs);
 
     // Returns a string that details the forms in the list
     std::string toString(std::vector<std::string> inputNames, std::vector<std::string> outputNames) const;

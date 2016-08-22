@@ -49,8 +49,8 @@ DataLoader::DataLoader(string dataFileName,
     unordered_map<string, string> varToPrecision;
     unordered_map<string, string> precisionToVar;
 
-    unordered_map<string, int> inputIDs;
-    unordered_map<string, pair<int,int>> outputIDs;
+    unordered_map<string, unsigned int> inputIDs;
+    unordered_map<string, pair<unsigned int, unsigned int>> outputIDs;
 
     ////////////////////////////
     // Loading data structure //
@@ -127,18 +127,18 @@ DataLoader::DataLoader(string dataFileName,
         if (loadingTestData)
         {
             // Input variables order
-            for (size_t i = 0; i < inputVariableNames.size(); ++i)
+            for (unsigned int i = 0; i < inputVariableNames.size(); ++i)
             {
                 inputIDs.emplace(inputVariableNames[i],i);
             }
 
             // Output variables order
-            for (size_t i = 0; i < outputVariableNames.size(); ++i)
+            for (unsigned int i = 0; i < outputVariableNames.size(); ++i)
             {
                 auto const& out = outputVariableNames[i];
-                for (size_t j = 0; j < out.size(); ++j)
+                for (unsigned int j = 0; j < out.size(); ++j)
                 {
-                    outputIDs.emplace(out[j], pair<int,int>(i, j));
+                    outputIDs.emplace(out[j], pair<unsigned int, unsigned int>(i, j));
                 }
             }
         }
@@ -147,14 +147,14 @@ DataLoader::DataLoader(string dataFileName,
             // We read the outputs declaration
             while (!cut.empty())
             {
-                int const id = outputVariableNames.size();
+                unsigned int const id = outputVariableNames.size();
                 outputVariableNames.push_back(cut);
 
-                for (size_t i = 0; i < cut.size(); ++i)
+                for (unsigned int i = 0; i < cut.size(); ++i)
                 {
                     string const name = cut[i];
                     usedVars.insert(name);
-                    outputIDs.emplace(name, pair<int,int>(id, i));
+                    outputIDs.emplace(name, pair<unsigned int, unsigned int>(id, i));
                 }
 
                 if (!getline(structureSource, line))
@@ -170,7 +170,7 @@ DataLoader::DataLoader(string dataFileName,
             {
                 if (outputIDs.count(name) == 0)
                 {
-                    int const id = inputVariableNames.size();
+                    unsigned int const id = inputVariableNames.size();
                     inputIDs.emplace(name, id);
                     inputVariableNames.push_back(name);
                 }
@@ -184,16 +184,16 @@ DataLoader::DataLoader(string dataFileName,
     // Extracting Some Information //
     /////////////////////////////////
 
-    int const nbInputs = inputVariableNames.size();
-    int const nbOutputs = outputVariableNames.size();
-    vector<int> outputDimensions(nbOutputs);
+    unsigned int const nbInputs = inputVariableNames.size();
+    unsigned int const nbOutputs = outputVariableNames.size();
+    vector<unsigned int> outputDimensions(nbOutputs);
 
     vector<bool> fixedPrecisionInput(nbInputs, false);
     vector<double> inputPrecisions(nbInputs, 0.);
     vector<vector<bool>> fixedPrecisionOutput(nbOutputs);
     vector<vector<double>> outputPrecisions(nbOutputs);
 
-    for (int i = 0; i < nbInputs; ++i)
+    for (unsigned int i = 0; i < nbInputs; ++i)
     {
         string const name = inputVariableNames[i];
         if (varToPrecision.count(name) == 0)
@@ -212,14 +212,14 @@ DataLoader::DataLoader(string dataFileName,
         }
     }
 
-    for (int i = 0; i < nbOutputs; ++i)
+    for (unsigned int i = 0; i < nbOutputs; ++i)
     {
-        int const nbDims = outputVariableNames[i].size();
+        unsigned int const nbDims = outputVariableNames[i].size();
         outputDimensions[i] = nbDims;
         vector<bool> fixed(nbDims, false);
         vector<double> prec(nbDims, 0.);
 
-        for (int j = 0; j < nbDims; ++j)
+        for (unsigned int j = 0; j < nbDims; ++j)
         {
             string const name = outputVariableNames[i][j];
             if (varToPrecision.count(name) == 0)
@@ -250,7 +250,7 @@ DataLoader::DataLoader(string dataFileName,
 
     ifstream dataSource(dataFileName);
     string line, item;
-    size_t nbColumns;
+    unsigned int nbColumns;
 
     if (!dataSource.is_open())
     {
@@ -258,14 +258,14 @@ DataLoader::DataLoader(string dataFileName,
         exit(1);
     }
 
-    vector<int> inputColumnID(nbInputs);
-    vector<int> inputPrecisionColumnID(nbInputs);
-    vector<vector<int>> outputColumnID(nbOutputs);
-    vector<vector<int>> outputPrecisionColumnID(nbOutputs);
+    vector<unsigned int> inputColumnID(nbInputs);
+    vector<unsigned int> inputPrecisionColumnID(nbInputs);
+    vector<vector<unsigned int>> outputColumnID(nbOutputs);
+    vector<vector<unsigned int>> outputPrecisionColumnID(nbOutputs);
 
     // Identifying columns
     {
-        for (int i = 0; i < nbOutputs; ++i)
+        for (unsigned int i = 0; i < nbOutputs; ++i)
         {
             outputColumnID[i].resize(outputDimensions[i]);
             outputPrecisionColumnID[i].resize(outputDimensions[i]);
@@ -287,7 +287,7 @@ DataLoader::DataLoader(string dataFileName,
         }
 
         nbColumns = names.size();
-        for (size_t i = 0; i < nbColumns; ++i)
+        for (unsigned int i = 0; i < nbColumns; ++i)
         {
             string name = names[i];
             bool isPrec = false;
@@ -316,7 +316,7 @@ DataLoader::DataLoader(string dataFileName,
             }
             else
             {
-                pair<int,int> const IDs = outputIDs.at(name);
+                pair<unsigned int, unsigned int> const IDs = outputIDs.at(name);
                 if (isPrec)
                 {
                     outputPrecisionColumnID[IDs.first][IDs.second] = i;
@@ -350,7 +350,7 @@ DataLoader::DataLoader(string dataFileName,
         DataPoint point;
         point.x.reserve(nbInputs);
 
-        for (int i = 0; i < nbInputs; ++i)
+        for (unsigned int i = 0; i < nbInputs; ++i)
         {
             if (fixedPrecisionInput[i])
             {
@@ -365,14 +365,14 @@ DataLoader::DataLoader(string dataFileName,
         }
 
         point.t.reserve(nbOutputs);
-        for (int i = 0; i < nbOutputs; ++i)
+        for (unsigned int i = 0; i < nbOutputs; ++i)
         {
             vector<Measure> out;
 
-            int const outputSize = outputDimensions[i];
+            unsigned int const outputSize = outputDimensions[i];
             out.reserve(outputSize);
 
-            for (int j = 0; j < outputSize; ++j)
+            for (unsigned int j = 0; j < outputSize; ++j)
             {
                 if (fixedPrecisionOutput[i][j])
                 {
@@ -402,7 +402,7 @@ DataLoader::DataLoader(string dataFileName,
     if (loadingTestData)
     {
         {
-            size_t const nbPoints = loadedData.size();
+            unsigned int const nbPoints = loadedData.size();
             testDataInput.reserve(nbPoints);
             testDataOutput.reserve(nbPoints);
             testDataOutputPrecisions.reserve(nbPoints);
@@ -470,9 +470,9 @@ DataPoint DataLoader::getTrainingDataPoint()
 }
 
 
-vector<DataPoint> DataLoader::getTrainingDataPoints(int nbDataPoints)
+vector<DataPoint> DataLoader::getTrainingDataPoints(unsigned int nbDataPoints)
 {
-    int const before = loadedData.size();
+    unsigned int const before = loadedData.size();
 
     if (before < nbDataPoints)
     {
@@ -480,7 +480,7 @@ vector<DataPoint> DataLoader::getTrainingDataPoints(int nbDataPoints)
         exit(1);
     }
 
-    int const after = before - nbDataPoints;
+    unsigned int const after = before - nbDataPoints;
     vector<DataPoint> const result(loadedData.begin() + after, loadedData.end());
     loadedData.resize(after);
 
@@ -488,9 +488,9 @@ vector<DataPoint> DataLoader::getTrainingDataPoints(int nbDataPoints)
 }
 
 
-pair<vector<vector<double>>, pair<vector<vector<vector<double>>>, vector<vector<vector<double>>>>> DataLoader::getTestDataPoints(int nbDataPoints)
+pair<vector<vector<double>>, pair<vector<vector<vector<double>>>, vector<vector<vector<double>>>>> DataLoader::getTestDataPoints(unsigned int nbDataPoints)
 {
-    int const before = testDataInput.size();
+    unsigned int const before = testDataInput.size();
 
     if (before < nbDataPoints)
     {
@@ -498,7 +498,7 @@ pair<vector<vector<double>>, pair<vector<vector<vector<double>>>, vector<vector<
         exit(1);
     }
 
-    int const after = before - nbDataPoints;
+    unsigned int const after = before - nbDataPoints;
     vector<vector<double>> const inputs(testDataInput.begin() + after, testDataInput.end());
     testDataInput.resize(after);
     vector<vector<vector<double>>> const outputs(testDataOutput.begin() + after, testDataOutput.end());

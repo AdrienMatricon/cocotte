@@ -15,28 +15,28 @@ class UsedDimensions
 {
 
 private:
-    int nbUsed;
-    int totalNbDimensions;
-    std::list<int> dimensionsIds;
+    unsigned int nbUsed;
+    unsigned int totalNbDimensions;
+    std::list<unsigned int> dimensionsIds;
 
 public:
 
     // Constructors
     UsedDimensions() = default;
-    explicit UsedDimensions(int totalNbDimensions, std::list<int> dimensionsIds);
-    explicit UsedDimensions(int totalNbDimensions, std::list<int> dimensionsIds, int nbUsed);
+    explicit UsedDimensions(unsigned int totalNbDimensions, std::list<unsigned int> dimensionsIds);
+    explicit UsedDimensions(unsigned int totalNbDimensions, std::list<unsigned int> dimensionsIds, unsigned int nbUsed);
 
     // Main functions
-    std::list<int> const& getIds() const;
-    int getTotalNbDimensions() const;
-    int getNbUsed() const;
-    std::list<int> unusedDimensionsIds() const;
-    void addDimension(int id);
+    std::list<unsigned int> const& getIds() const;
+    unsigned int getTotalNbDimensions() const;
+    unsigned int getNbUsed() const;
+    std::list<unsigned int> unusedDimensionsIds() const;
+    void addDimension(unsigned int id);
 
     // Returns a list of combinations of d used dimensions
-    std::list<UsedDimensions> getCombinationsFromUsed(int d) const;
+    std::list<UsedDimensions> getCombinationsFromUsed(unsigned int d) const;
     // Same but with also combinations d-1 used dimensions and an unused one
-    std::list<UsedDimensions> getCombinationsFromUsedAndOne(int d) const;
+    std::list<UsedDimensions> getCombinationsFromUsedAndOne(unsigned int d) const;
 
     // Operators
     UsedDimensions const& operator+=(UsedDimensions otherDimensions);

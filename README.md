@@ -4,6 +4,9 @@ is an iterative algorithm for discovering and learning the smooth components of 
 locally smooth function, which can be used to discover discrete, meaningful
 forward-parameterized skills from a set of behaviour examples.
 
+## Publications
+- A.Matricon, D.Filliat, P-Y.Oudeyer, *An Iterative Algorithm for Forward-Parameterized Skill Discovery*, ICDL-EPIROB, 2016 (coming soon)
+
 ## Before starting
 If you read about COCOTTE in a publication, you may be more interested in the version of COCOTTE
 and its implementation described in this publication than in the latest one.

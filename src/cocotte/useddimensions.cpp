@@ -15,13 +15,13 @@ namespace Cocotte {
 
 
 // Constructors
-UsedDimensions::UsedDimensions(int nbDimensions, list<int> dimensions):
+UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dimensions):
     nbUsed(dimensions.size()),
     totalNbDimensions(nbDimensions),
     dimensionsIds(dimensions)
 {}
 
-UsedDimensions::UsedDimensions(int nbDimensions, list<int> dimensions, int used):
+UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dimensions, unsigned int used):
     nbUsed(used),
     totalNbDimensions(nbDimensions),
     dimensionsIds(dimensions)
@@ -30,37 +30,37 @@ UsedDimensions::UsedDimensions(int nbDimensions, list<int> dimensions, int used)
 
 
 // Main functions
-list<int> const& UsedDimensions::getIds() const
+list<unsigned int> const& UsedDimensions::getIds() const
 {
     return dimensionsIds;
 }
 
 
-int UsedDimensions::getTotalNbDimensions() const
+unsigned int UsedDimensions::getTotalNbDimensions() const
 {
     return totalNbDimensions;
 }
 
 
-int UsedDimensions::getNbUsed() const
+unsigned int UsedDimensions::getNbUsed() const
 {
     return nbUsed;
 }
 
 
-list<int> UsedDimensions::unusedDimensionsIds() const
+list<unsigned int> UsedDimensions::unusedDimensionsIds() const
 {
-    list<int> result;
+    list<unsigned int> result;
 
     auto dIter = dimensionsIds.begin();
     auto const dEnd = dimensionsIds.end();
 
-    int i = 0;
+    unsigned int i = 0;
 
     // We iterate through the list and add all missing dimensions to the list
     if (dIter != dEnd)
     {
-        int next = *dIter;
+        unsigned int next = *dIter;
         do
         {
             if (i == next)
@@ -87,7 +87,7 @@ list<int> UsedDimensions::unusedDimensionsIds() const
 }
 
 
-void UsedDimensions::addDimension(int id)
+void UsedDimensions::addDimension(unsigned int id)
 {
     auto dIter = dimensionsIds.begin();
     auto dEnd = dimensionsIds.end();
@@ -108,7 +108,7 @@ void UsedDimensions::addDimension(int id)
 
 
 // Returns a list of combinations of d used dimensions
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(int d) const
+list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) const
 {
     if (d > nbUsed)
     {
@@ -118,33 +118,34 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(int d) const
     else if (d < 1)
     {
         // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<int>{}));
+        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<unsigned int>{}));
     }
 
     // We convert the list to a vector to access it more easily
-    vector<int> const asVector(dimensionsIds.begin(), dimensionsIds.end());
+    vector<unsigned int> const asVector(dimensionsIds.begin(), dimensionsIds.end());
 
 
     // We create a vector of pairs to generate the combination
     // Each pair contains a list of dimensions of increasing indices in asVector,
     // and the indice of the next dimension in asVector
-    vector<pair<list<int>,int>> combinations(1, pair<list<int>,int>(list<int>{}, 0));
+    vector<pair<list<unsigned int>,unsigned int>> combinations(
+                1, pair<list<unsigned int>,unsigned int>(list<unsigned int>{}, 0));
 
-    for (int currentNb = 0; currentNb < d; ++currentNb)
+    for (unsigned int currentNb = 0; currentNb < d; ++currentNb)
     {
-        vector<pair<list<int>,int>> next;
+        vector<pair<list<unsigned int>, unsigned int>> next;
 
-        int const stillNeeded = d - currentNb;
-        int const lastIdAddable = nbUsed - stillNeeded;
-        int const endLoop = lastIdAddable + 1;
+        unsigned int const stillNeeded = d - currentNb;
+        unsigned int const lastIdAddable = nbUsed - stillNeeded;
+        unsigned int const endLoop = lastIdAddable + 1;
 
         for (auto const& comb : combinations)
         {
-            for (int i = std::get<1>(comb); i < endLoop; ++i)
+            for (unsigned int i = std::get<1>(comb); i < endLoop; ++i)
             {
-                list<int> temp = std::get<0>(comb);
+                list<unsigned int> temp = std::get<0>(comb);
                 temp.push_back(asVector[i]);
-                next.push_back(pair<list<int>,int>(temp, i+1));
+                next.push_back(pair<list<unsigned int>, unsigned int>(temp, i+1));
             }
         }
 
@@ -163,7 +164,7 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(int d) const
 
 
 // Same but also with combinations of d-1 used dimensions and an unused one
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(int d) const
+list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int d) const
 {
     if ( (d-1) > nbUsed )
     {
@@ -173,7 +174,7 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(int d) const
     else if (d < 1)
     {
         // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<int>{}));
+        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<unsigned int>{}));
     }
 
     auto result = getCombinationsFromUsed(d);

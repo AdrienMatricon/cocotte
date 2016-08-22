@@ -26,7 +26,7 @@ private:
 
     std::vector<std::string> inputNames;
     std::vector<std::vector<std::string>> outputNames;
-    int nbOutputs;
+    unsigned int nbOutputs;
     std::vector<ModelList<ApproximatorType>> modelLists;
     std::vector<std::shared_ptr<DataPoint const>> data;
 
@@ -38,8 +38,8 @@ public:
     // Accessors
     std::vector<std::string> getInputNames() const;
     std::vector<std::vector<std::string>> getOutputNames() const;
-    size_t getNbPoints() const;
-    size_t getComplexity(size_t i, size_t j) const;
+    unsigned int getNbPoints() const;
+    unsigned int getComplexity(unsigned int i, unsigned int j) const;
 
     // Serialization
     explicit Learner(std::string fileName);
@@ -71,8 +71,8 @@ public:
     // Predicts outputs for new points
     std::vector<std::vector<std::vector<double>>> predict(std::vector<std::vector<double>> const& x,
                                                           bool shouldGetModelIDs = false,
-                                                          std::vector<std::vector<int>> *modelIDs = nullptr);
-    std::vector<std::vector<std::vector<double>>> predict(std::vector<std::vector<double>> const& x, std::vector<std::vector<int>> *modelIDs);
+                                                          std::vector<std::vector<unsigned int>> *modelIDs = nullptr);
+    std::vector<std::vector<std::vector<double>>> predict(std::vector<std::vector<double>> const& x, std::vector<std::vector<unsigned int>> *modelIDs);
 
 
     template<typename Archive>
@@ -90,7 +90,7 @@ public:
         out << "Model for output 0:" << endl;
         out << learner.modelLists[0].toString(learner.inputNames, learner.outputNames[0]);
 
-        for (int i = 1; i < learner.nbOutputs; ++i)
+        for (unsigned int i = 1; i < learner.nbOutputs; ++i)
         {
             out << endl;
             out << "Models for output " << i << ":" << endl;

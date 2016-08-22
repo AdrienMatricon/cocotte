@@ -29,24 +29,24 @@ using Cocotte::Learner;
 #include <soplex/src/soplex.h>
 
 
-vector<vector<size_t>> computeErrors(vector<vector<vector<double>>> const& estimations,
+vector<vector<unsigned int>> computeErrors(vector<vector<vector<double>>> const& estimations,
                                            vector<vector<vector<double>>> const& targets,
                                            vector<vector<vector<double>>> const& targetsPrec)
 {
-    vector<vector<size_t>> results;
-    size_t const nbPoints = estimations.size();
-    size_t const nbOutputs = estimations.front().size();
+    vector<vector<unsigned int>> results;
+    unsigned int const nbPoints = estimations.size();
+    unsigned int const nbOutputs = estimations.front().size();
     results.reserve(nbOutputs);
-    for (size_t i = 0; i < nbOutputs; ++i)
+    for (unsigned int i = 0; i < nbOutputs; ++i)
     {
-        results.push_back(vector<size_t>(estimations[0][i].size(), 0.));
+        results.push_back(vector<unsigned int>(estimations[0][i].size(), 0.));
     }
 
-    for (size_t k = 0; k < nbPoints; ++k)
-        for (size_t i = 0; i < nbOutputs; ++i)
+    for (unsigned int k = 0; k < nbPoints; ++k)
+        for (unsigned int i = 0; i < nbOutputs; ++i)
         {
-            size_t const nbDims = results[i].size();
-            for (size_t j = 0; j < nbDims; ++j)
+            unsigned int const nbDims = results[i].size();
+            for (unsigned int j = 0; j < nbDims; ++j)
             {
                 if (abs((estimations[k][i][j] - targets[k][i][j]) / targetsPrec[k][i][j]) > 1.)
                 {
@@ -65,7 +65,7 @@ void dumpEstimates(string fileName,
                    vector<vector<double>> const& x,
                    vector<vector<vector<double>>> const& estimates,
                    vector<vector<vector<double>>> const& actual = vector<vector<vector<double>>>(0),
-                   vector<vector<int>> const& modelIDs = vector<vector<int>>(0))
+                   vector<vector<unsigned int>> const& modelIDs = vector<vector<unsigned int>>(0))
 {
     ofstream outputFile(fileName);
     if (!outputFile.is_open())
@@ -75,14 +75,14 @@ void dumpEstimates(string fileName,
     }
 
 
-    size_t const nbInputs = inputNames.size();
-    size_t const nbOutputs = outputNames.size();
-    size_t const nbDataPoints = x.size();
+    unsigned int const nbInputs = inputNames.size();
+    unsigned int const nbOutputs = outputNames.size();
+    unsigned int const nbDataPoints = x.size();
     bool const knownActual = (actual.size() > 0);
     bool const dumpModelIDs = (modelIDs.size() > 0);
 
     outputFile << inputNames[0];
-    for (size_t i = 1; i < nbInputs; ++i)
+    for (unsigned int i = 1; i < nbInputs; ++i)
     {
         outputFile << ", " << inputNames[i];
     }
@@ -108,7 +108,7 @@ void dumpEstimates(string fileName,
 
     if (dumpModelIDs)
     {
-        for (size_t i = 0; i < nbOutputs; ++i)
+        for (unsigned int i = 0; i < nbOutputs; ++i)
         {
             outputFile << ", output" << i << "_mID";
         }
@@ -116,10 +116,10 @@ void dumpEstimates(string fileName,
 
     outputFile << endl;
 
-    for (size_t i = 0; i < nbDataPoints; ++i)
+    for (unsigned int i = 0; i < nbDataPoints; ++i)
     {
         outputFile << x[i][0];
-        for (size_t j = 1; j < nbInputs; ++j)
+        for (unsigned int j = 1; j < nbInputs; ++j)
         {
             outputFile << ", " << x[i][j];
         }
@@ -170,25 +170,25 @@ int main(int argc, char *argv[])
 
                 string trainingData = argv[2];
                 string dataStructure = argv[3];
-                int const nbPoints = std::atoi(argv[4]);
+                unsigned int const nbPoints = std::atoi(argv[4]);
 
-                int const nbBatches = argc - 5;
+                unsigned int const nbBatches = argc - 5;
                 vector<string> outputFiles;
                 outputFiles.reserve(nbBatches);
-                for (int i = 0; i < nbBatches; ++i)
+                for (unsigned int i = 0; i < nbBatches; ++i)
                 {
                     outputFiles.push_back(argv[i+5]);
                 }
 
-                int const nbPointsPerBatch = nbPoints/nbBatches;
-                int const nbPointsLastBatch = nbPoints - (nbPointsPerBatch * (nbBatches-1));
+                unsigned int const nbPointsPerBatch = nbPoints/nbBatches;
+                unsigned int const nbPointsLastBatch = nbPoints - (nbPointsPerBatch * (nbBatches-1));
 
                 DataSource* source = new DataLoader(trainingData, dataStructure);
                 cout << "Data loaded." << endl;
                 Learner<Polynomial> learner(source->getInputVariableNames(), source->getOutputVariableNames());
 
-                int const lastBatch = nbBatches - 1;
-                for (int i = 0; i < lastBatch; ++i)
+                unsigned int const lastBatch = nbBatches - 1;
+                for (unsigned int i = 0; i < lastBatch; ++i)
                 {
                     cout << "Adding batch " << i + 1 << "/" << nbBatches << ". Computing..."; cout.flush();
 
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
         {
             if ((argc >= 6) && (argc <= 7))
             {
-                int nbPoints = 10000;
+                unsigned int nbPoints = 10000;
 
                 if (argc == 7)
                 {
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
                 cout << "Computing..." << endl;
 
                 auto points = source->getTestDataPoints(nbPoints);
-                vector<vector<int>> modelIDs;
+                vector<vector<unsigned int>> modelIDs;
                 auto estimates = learner.predict(points.first, &modelIDs);
                 cout << "Outputs predicted. Dumping data... "; cout.flush();
                 dumpEstimates(outputFile, learner.getInputNames(), learner.getOutputNames(), points.first, estimates, points.second.first, modelIDs);
@@ -284,14 +284,14 @@ int main(int argc, char *argv[])
             {
                 string inputFile = argv[2];
                 string dataStructure = argv[3];
-                int const nbPoints = std::atoi(argv[4]);
+                unsigned int const nbPoints = std::atoi(argv[4]);
                 string outputFile = argv[5];
 
-                int const nbModelsFiles = argc - 6;
+                unsigned int const nbModelsFiles = argc - 6;
                 vector<string> modelsFiles;
                 modelsFiles.reserve(nbModelsFiles);
 
-                for (int i = 0; i < nbModelsFiles; ++i)
+                for (unsigned int i = 0; i < nbModelsFiles; ++i)
                 {
                     modelsFiles.push_back(argv[i+6]);
                 }
@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
 
                 // First line that will be dumped
                 auto const outputNames = learner.getOutputNames();
-                size_t const nbOutputs = outputNames.size();
+                unsigned int const nbOutputs = outputNames.size();
                 stringstream result;
                 result << "nbTrainingPoints, nbTestPoints";
                 for (auto const& output : outputNames)
@@ -330,10 +330,10 @@ int main(int argc, char *argv[])
 
                 // New line to be dumped
                 result << learner.getNbPoints() << ", " << nbPoints;
-                for (size_t i = 0; i < nbOutputs; ++i)
+                for (unsigned int i = 0; i < nbOutputs; ++i)
                 {
-                    size_t const nbDims = errors[i].size();
-                    for (size_t j = 0; j < nbDims; ++j)
+                    unsigned int const nbDims = errors[i].size();
+                    for (unsigned int j = 0; j < nbDims; ++j)
                     {
                         result << ", " << learner.getComplexity(i,j);
                         result << ", " << errors[i][j];
@@ -341,7 +341,7 @@ int main(int argc, char *argv[])
                 }
                 result << endl;
 
-                for (int k = 1; k < nbModelsFiles; ++k)
+                for (unsigned int k = 1; k < nbModelsFiles; ++k)
                 {
                     cout << "Repeating (" << k+1 << "/" << nbModelsFiles << ")... "; cout.flush();
                     learner = Learner<Polynomial>(modelsFiles[k]);
@@ -349,10 +349,10 @@ int main(int argc, char *argv[])
 
                     // New line to be dumped
                     result << learner.getNbPoints() << ", " << nbPoints;
-                    for (size_t i = 0; i < nbOutputs; ++i)
+                    for (unsigned int i = 0; i < nbOutputs; ++i)
                     {
-                        size_t const nbDims = errors[i].size();
-                        for (size_t j = 0; j < nbDims; ++j)
+                        unsigned int const nbDims = errors[i].size();
+                        for (unsigned int j = 0; j < nbDims; ++j)
                         {
                             result << ", " << learner.getComplexity(i,j);
                             result << ", " << errors[i][j];

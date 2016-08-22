@@ -15,7 +15,7 @@ namespace Models {
 
 // Constructors
 template <typename ModelType, typename PointType>
-ModelIt<ModelType, PointType>::ModelIt(std::list<std::shared_ptr<ModelType>> t, int d) : treeBranch(t), depth(d)
+ModelIt<ModelType, PointType>::ModelIt(std::list<std::shared_ptr<ModelType>> t, unsigned int d) : treeBranch(t), depth(d)
 {}
 
 
@@ -34,7 +34,7 @@ std::list<std::shared_ptr<Model>> const& ModelIt<ModelType, PointType>::getTreeB
 
 
 template <typename ModelType, typename PointType>
-int ModelIt<ModelType, PointType>::getDepth() const
+unsigned int ModelIt<ModelType, PointType>::getDepth() const
 {
     return depth;
 }
@@ -169,7 +169,7 @@ IteratorType pointsBegin(std::shared_ptr<ModelType> pModel)
     using std::static_pointer_cast;
 
     list<shared_ptr<ModelType>> ptrList(1, pModel);
-    int depth = 1;
+    unsigned int depth = 1;
 
     while (!pModel->isLeaf())
     {
@@ -196,7 +196,7 @@ IteratorType pointsEnd(std::shared_ptr<ModelType> pModel)
 
 template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, int outputID)
+double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, unsigned int outputID)
 {
     auto const mBegin0 = pointsBegin(pModel0), mEnd0 = pointsEnd(pModel0);
     auto const mBegin1 = pointsBegin(pModel1), mEnd1 = pointsEnd(pModel1);
@@ -229,7 +229,7 @@ double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType
 }
 
 
-double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, int outputID)
+double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, unsigned int outputID)
 {
     double dist = 0.;
 

@@ -26,13 +26,13 @@ public:
     // for each combination of the formerly used dimensions and at most one other.
     virtual std::list<std::list<Form>> getMostComplexForms(
             UsedDimensions const& formerlyUsedDimensions,
-            int maxComplexity) = 0;
+            unsigned int maxComplexity) = 0;
 
     // Tries to fit the points with a form
     // If success, params are stored within the form
-    virtual bool tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, int outputID, int dimInOutput) = 0;
+    virtual bool tryFit(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput) = 0;
 
-    virtual Form fitOnePoint(double t, int nbDims) = 0;
+    virtual Form fitOnePoint(double t, unsigned int nbDims) = 0;
 
     // Estimates the value for the given inputs
     virtual std::vector<double> estimate(Form const& form, std::vector<std::vector<double>> const& x) = 0;

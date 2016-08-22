@@ -20,14 +20,14 @@ public:
     // for each combination of the formerly used dimensions and at most one other.
     virtual std::list<std::list<Form>> getMostComplexForms(
             UsedDimensions const& formerlyUsedDimensions,
-            int maxComplexity) override;
+            unsigned int maxComplexity) override;
 
     // Tries to fit the points with a form
     // If success, params are stored within the form
-    virtual bool tryFit(Form& form, int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, int outputID, int dimInOutput) override;
-    virtual bool tryFitGLPK(Form& form, int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, int outputID, int dimInOutput);
+    virtual bool tryFit(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput) override;
+    virtual bool tryFitGLPK(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput);
 
-    virtual Form fitOnePoint(double t, int nbDims) override;
+    virtual Form fitOnePoint(double t, unsigned int nbDims) override;
 
     // Estimates the value for the given inputs
     virtual std::vector<double> estimate(Form const& form, std::vector<std::vector<double>> const& x) override;
@@ -39,13 +39,13 @@ public:
 private:
 
     // Evaluates all terms of the polynomial and returns them as a vector
-    static std::vector<double> getTerms(std::vector<double> const& vals, int nbDims, int degree);
+    static std::vector<double> getTerms(std::vector<double> const& vals, unsigned int nbDims, unsigned int degree);
 
     // Number of terms returned by getTerms
-    static int getNbTerms(int nbDims, int degree);
+    static unsigned int getNbTerms(unsigned int nbDims, unsigned int degree);
 
     // Complexity definition
-    static int complexity(int degree, int nbUsedDimensions);
+    static unsigned int complexity(unsigned int degree, unsigned int nbUsedDimensions);
 
 };
 

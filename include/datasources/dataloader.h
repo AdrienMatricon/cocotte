@@ -38,10 +38,10 @@ public:
 
     // Main methods
     virtual Cocotte::DataPoint getTrainingDataPoint() override;
-    virtual std::vector<Cocotte::DataPoint> getTrainingDataPoints(int nbDataPoints) override;
+    virtual std::vector<Cocotte::DataPoint> getTrainingDataPoints(unsigned int nbDataPoints) override;
     virtual std::pair<std::vector<std::vector<double>>,
     std::pair<std::vector<std::vector<std::vector<double>>>,
-    std::vector<std::vector<std::vector<double>>>>> getTestDataPoints(int nbPoints) override;
+    std::vector<std::vector<std::vector<double>>>>> getTestDataPoints(unsigned int nbPoints) override;
     virtual std::vector<std::string> getInputVariableNames() override;
     virtual std::vector<std::vector<std::string>> getOutputVariableNames() override;
 

@@ -26,23 +26,23 @@ ApproximatorType ModelList<ApproximatorType>::approximator;
 
 // Constructor
 template <typename ApproximatorType>
-ModelList<ApproximatorType>::ModelList(int oID, int nId, int nOd): outputID(oID), nbInputDims(nId), nbOutputDims(nOd)
+ModelList<ApproximatorType>::ModelList(unsigned int oID, unsigned int nId, unsigned int nOd): outputID(oID), nbInputDims(nId), nbOutputDims(nOd)
 {}
 
 
 
 // Accessors
 template <typename ApproximatorType>
-size_t ModelList<ApproximatorType>::getNbModels() const
+unsigned int ModelList<ApproximatorType>::getNbModels() const
 {
     return nbModels;
 }
 
 
 template <typename ApproximatorType>
-size_t ModelList<ApproximatorType>::getComplexity(size_t j) const
+unsigned int ModelList<ApproximatorType>::getComplexity(unsigned int j) const
 {
-    size_t complexity = 0;
+    unsigned int complexity = 0;
 
     for (auto const& model : models)
     {
@@ -191,7 +191,7 @@ void ModelList<ApproximatorType>::trainClassifier()
     using cv::Mat;
     using cv::RandomTreeParams;
 
-    int const nbVars = Models::pointsBegin(models.front())->x.size();
+    unsigned int const nbVars = Models::pointsBegin(models.front())->x.size();
 
     vector<float> priors(nbModels, 1.f);
     RandomTreeParams params(nbModels*2,                         // max depth
@@ -207,7 +207,7 @@ void ModelList<ApproximatorType>::trainClassifier()
                             CV_TERMCRIT_ITER |	CV_TERMCRIT_EPS // termination cirteria
                             );
 
-    int nbPoints = 0;
+    unsigned int nbPoints = 0;
     for (auto const& model : models)
     {
         nbPoints += model->getNbPoints();
@@ -219,14 +219,14 @@ void ModelList<ApproximatorType>::trainClassifier()
 
     {
         float label = 0.f;
-        int i = 0;
+        unsigned int i = 0;
         for (auto const& model : models)
         {
             auto const mEnd = Models::pointsEnd(model);
             for (auto mIt = Models::pointsBegin(model); mIt != mEnd; ++mIt, ++i)
             {
                 auto const& x = mIt->x;
-                for (int j = 0; j < nbVars; ++j)
+                for (unsigned int j = 0; j < nbVars; ++j)
                 {
                     data.at<float>(i,j) = x[j].value;
                 }
@@ -244,29 +244,29 @@ void ModelList<ApproximatorType>::trainClassifier()
 
 
 template <typename ApproximatorType>
-std::vector<int> ModelList<ApproximatorType>::selectModels(std::vector<std::vector<double>> const& points)
+std::vector<unsigned int> ModelList<ApproximatorType>::selectModels(std::vector<std::vector<double>> const& points)
 {
     using cv::Mat;
     using std::vector;
 
-    size_t const nbPoints = points.size();
-    size_t const nbVars = points[0].size();
-    vector<int> result(nbPoints);
+    unsigned int const nbPoints = points.size();
+    unsigned int const nbVars = points[0].size();
+    vector<unsigned int> result(nbPoints);
 
     if (!trainedClassifier)
     {
         trainClassifier();
     }
 
-    for (size_t i = 0; i < nbPoints; ++i)
+    for (unsigned int i = 0; i < nbPoints; ++i)
     {
         Mat point(1, nbVars, CV_32F);
-        for (size_t j = 0; j < nbVars; ++j)
+        for (unsigned int j = 0; j < nbVars; ++j)
         {
             point.at<float>(0,j) = points[i][j];
         }
 
-        result[i] = static_cast<int>(classifier.predict(point) + 0.5f);
+        result[i] = static_cast<unsigned int>(classifier.predict(point) + 0.5f);
     }
 
     return result;
@@ -276,11 +276,11 @@ std::vector<int> ModelList<ApproximatorType>::selectModels(std::vector<std::vect
 template <typename ApproximatorType>
 std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vector<std::vector<double>> const& points,
                                                                       bool fillModelIDs,
-                                                                      std::vector<int> *modelIDs)
+                                                                      std::vector<unsigned int> *modelIDs)
 {
     using std::vector;
 
-    size_t const nbPoints = points.size();
+    unsigned int const nbPoints = points.size();
     vector<vector<vector<double>>> possibleValues;
     possibleValues.reserve(nbModels);
 
@@ -296,7 +296,7 @@ std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vecto
         possibleValues.push_back(estimates);
     }
 
-    vector<int> const selected = selectModels(points);
+    vector<unsigned int> const selected = selectModels(points);
     if (fillModelIDs)
     {
         *modelIDs = selected;
@@ -304,10 +304,10 @@ std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vecto
 
     vector<vector<double>> t(nbPoints, vector<double>(nbOutputDims));
 
-    size_t i = 0;
+    unsigned int i = 0;
     for (auto const& k : selected)
     {
-        for (size_t j = 0; j < nbOutputDims; ++j)
+        for (unsigned int j = 0; j < nbOutputDims; ++j)
         {
             t[i][j] = possibleValues[k][j][i];
         }
@@ -319,7 +319,7 @@ std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vecto
 
 
 template <typename ApproximatorType>
-std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vector<std::vector<double>> const& points, std::vector<int> *modelIDs)
+std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vector<std::vector<double>> const& points, std::vector<unsigned int> *modelIDs)
 {
     return predict(points, true, modelIDs);
 }
@@ -335,12 +335,12 @@ std::string ModelList<ApproximatorType>::toString(std::vector<std::string> input
     auto mIt = models.begin();
 
     stringstream result;
-    int k = 0;
+    unsigned int k = 0;
     if (mIt != mEnd)
     {
         auto const forms = (*mIt)->getForms();
         result << "model " << k << ":" << endl;
-        for (size_t i = 0; i < nbOutputDims; ++i)
+        for (unsigned int i = 0; i < nbOutputDims; ++i)
         {
             result << outputNames[i] << ": " << approximator.formToString(forms[i], inputNames) << endl;
         }
@@ -351,7 +351,7 @@ std::string ModelList<ApproximatorType>::toString(std::vector<std::string> input
     {
         auto const forms = (*mIt)->getForms();
         result << "model " << k << ":" << endl;
-        for (size_t i = 0; i < nbOutputDims; ++i)
+        for (unsigned int i = 0; i < nbOutputDims; ++i)
         {
             result << outputNames[i] << ": " << approximator.formToString(forms[i], inputNames) << endl;
         }
@@ -404,14 +404,14 @@ std::shared_ptr<Models::Model> ModelList<ApproximatorType>::tryMerge(std::shared
     markAsTemporary = (markAsTemporary || model0->isTemporary() || model1->isTemporary());
 
     shared_ptr<Model> node (new Node(model0, model1, markAsTemporary));
-    int const nbPoints = node->getNbPoints();
+    unsigned int const nbPoints = node->getNbPoints();
     auto const mBegin = Models::pointsBegin(const_pointer_cast<Model const>(node));
     auto const mEnd = Models::pointsEnd(const_pointer_cast<Model const>(node));
 
     vector<Form> forms0 = model0->getForms(), forms1 = model1->getForms();
     vector<Form> newForms;
 
-    for (size_t dim = 0; dim < nbOutputDims; ++dim)
+    for (unsigned int dim = 0; dim < nbOutputDims; ++dim)
     {
         Form const form0 = forms0[dim], form1 = forms1[dim];
         UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
@@ -681,7 +681,7 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
 
             auto iIt = independentMergesInnerDistances.begin();
             auto const iEnd = independentMergesInnerDistances.end();
-            size_t nbPointsToTruncate = 0;
+            unsigned int nbPointsToTruncate = 0;
 
             bool doneSomething = false;
 

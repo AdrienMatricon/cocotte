@@ -37,13 +37,13 @@ bool Node::isTemporary() const
 }
 
 
-size_t Node::getNbPoints() const
+unsigned int Node::getNbPoints() const
 {
     return nbPoints;
 }
 
 
-double Node::getBiggestInnerDistance(int outputID)
+double Node::getBiggestInnerDistance(unsigned int outputID)
 {
     if (biggestInnerDistance < 0.)
     {

@@ -21,9 +21,9 @@ Learner<ApproximatorType>::Learner(std::vector<std::string> const& iNames,
                                    std::vector<std::vector<std::string>> const& oNames):
     inputNames(iNames), outputNames(oNames), nbOutputs(oNames.size())
 {
-    int const nbInputDims = iNames.size();
+    unsigned int const nbInputDims = iNames.size();
     modelLists.reserve(oNames.size());
-    for (int i = 0; i < nbOutputs; ++i)
+    for (unsigned int i = 0; i < nbOutputs; ++i)
     {
         modelLists.push_back(ModelList<ApproximatorType>(i, nbInputDims, oNames[i].size()));
     }
@@ -47,14 +47,14 @@ std::vector<std::vector<std::string>> Learner<ApproximatorType>::getOutputNames(
 
 
 template <typename ApproximatorType>
-size_t Learner<ApproximatorType>::getNbPoints() const
+unsigned int Learner<ApproximatorType>::getNbPoints() const
 {
     return data.size();
 }
 
 
 template <typename ApproximatorType>
-size_t Learner<ApproximatorType>::getComplexity(size_t i, size_t j) const
+unsigned int Learner<ApproximatorType>::getComplexity(unsigned int i, unsigned int j) const
 {
     return modelLists[i].getComplexity(j);
 }
@@ -149,14 +149,14 @@ void Learner<ApproximatorType>::removeArtifacts()
     for (auto& mList: modelLists)
     {
         // For each old model, we check if all its points could all fit in other models
-        size_t nbModels = mList.getNbModels();
+        unsigned int nbModels = mList.getNbModels();
         bool keepGoing = true;
 
         while (keepGoing && (nbModels >= 2))
         {
             keepGoing = false;
 
-            for (size_t j = 0; j < nbModels; ++j)
+            for (unsigned int j = 0; j < nbModels; ++j)
             {
                 // We remove the first model
                 auto firstModel = mList.firstModel();
@@ -178,7 +178,7 @@ void Learner<ApproximatorType>::removeArtifacts()
                 // We try to distribute the points into other models
                 mList.addPoints(pointers, true, true);
 
-                size_t newNbModels = mList.getNbModels();
+                unsigned int newNbModels = mList.getNbModels();
                 if (newNbModels < nbModels)
                 {
                     // If it worked, we keep removing artifacts
@@ -296,17 +296,17 @@ void Learner<ApproximatorType>::addDataPointsIncremental(std::vector<DataPoint> 
 template <typename ApproximatorType>
 std::vector<std::vector<std::vector<double>>> Learner<ApproximatorType>::predict(std::vector<std::vector<double>> const& x,
                                                                                  bool shouldObtainModelIDs,
-                                                                                 std::vector<std::vector<int>> *modelIDs)
+                                                                                 std::vector<std::vector<unsigned int>> *modelIDs)
 {
     using std::vector;
 
-    int const nbPoints = x.size();
+    unsigned int const nbPoints = x.size();
     vector<vector<vector<double>>> rawPredictions;
     rawPredictions.reserve(nbOutputs);
 
     if (shouldObtainModelIDs)
     {
-        *modelIDs = vector<vector<int>>(modelLists.size());
+        *modelIDs = vector<vector<unsigned int>>(modelLists.size());
         auto mIDs = (*modelIDs).begin();
         for (auto& mList : modelLists)
         {
@@ -324,9 +324,9 @@ std::vector<std::vector<std::vector<double>>> Learner<ApproximatorType>::predict
 
     vector<vector<vector<double>>> result(nbPoints, vector<vector<double>>(nbOutputs));
 
-    for (int i = 0; i < nbOutputs; ++i)
+    for (unsigned int i = 0; i < nbOutputs; ++i)
     {
-        for (int k = 0; k < nbPoints; ++k)
+        for (unsigned int k = 0; k < nbPoints; ++k)
         {
             result[k][i] = rawPredictions[i][k];
         }
@@ -339,7 +339,7 @@ std::vector<std::vector<std::vector<double>>> Learner<ApproximatorType>::predict
 
 template <typename ApproximatorType>
 std::vector<std::vector<std::vector<double>>> Learner<ApproximatorType>::predict(std::vector<std::vector<double>> const& x,
-                                                                                 std::vector<std::vector<int>> *modelIDs)
+                                                                                 std::vector<std::vector<unsigned int>> *modelIDs)
 {
     return predict(x, true, modelIDs);
 }

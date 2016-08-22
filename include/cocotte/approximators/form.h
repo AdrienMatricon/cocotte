@@ -16,8 +16,8 @@ struct Form
 {
     UsedDimensions usedDimensions;
     std::vector<double> params;
-    int complexity;
-    int other;
+    unsigned int complexity;
+    unsigned int other;
 
     Form() = default;
     Form(UsedDimensions uD) : usedDimensions(uD) {}
