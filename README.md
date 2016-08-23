@@ -59,6 +59,16 @@ This code was developed under Boost 1.59 and uses `boost::serialization` to dump
 ```sh
 $ sudo apt-get install libboost-all-dev
 ```
+##### /!\ Warning /!\
+The code will not compile with earlier versions of boost.
+If needed, you can manually install Boost 1.59: get the archive from [here][boost-dl], extract the archive, then run in the extracted folder:
+```sh
+$ ./bootstrap.sh --prefix=/usr/local
+$ sudo ./b2 install
+```
+
+[boost-dl]:http://www.boost.org/users/history/version_1_59_0.html
+
 #### OpenCV
 This code was developed under OpenCV 2.4.9 and uses `cv::RandomTrees` for classification.
 ```sh
