@@ -63,9 +63,11 @@ unsigned int Learner<ApproximatorType>::getComplexity(unsigned int i, unsigned i
 
 // Serialization
 template <typename ApproximatorType>
-Learner<ApproximatorType>::Learner(string fileName)
+Learner<ApproximatorType>::Learner(std::string fileName)
 {
     using std::ifstream;
+    using std::cerr;
+    using std::endl;
     using boost::archive::text_iarchive;
 
     ifstream inputFile(fileName);
@@ -81,9 +83,11 @@ Learner<ApproximatorType>::Learner(string fileName)
 
 
 template <typename ApproximatorType>
-void Learner<ApproximatorType>::dumpModels(string fileName)
+void Learner<ApproximatorType>::dumpModels(std::string fileName)
 {
     using std::ofstream;
+    using std::cerr;
+    using std::endl;
     using boost::archive::text_oarchive;
 
     ofstream outputFile(fileName);
@@ -117,7 +121,7 @@ void Learner<ApproximatorType>::addDataPoint(DataPoint const& point)
 
 
 template <typename ApproximatorType>
-void Learner<ApproximatorType>::addDataPoints(vector<DataPoint> const& points)
+void Learner<ApproximatorType>::addDataPoints(std::vector<DataPoint> const& points)
 {
     using std::vector;
     using std::shared_ptr;

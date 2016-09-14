@@ -87,13 +87,13 @@ public:
 
     friend std::ostream& operator<< (std::ostream& out, Learner<ApproximatorType> const& learner)
     {
-        out << "Model for output 0:" << endl;
+        out << "Model for output 0:" << std::endl;
         out << learner.modelLists[0].toString(learner.inputNames, learner.outputNames[0]);
 
         for (unsigned int i = 1; i < learner.nbOutputs; ++i)
         {
             out << endl;
-            out << "Models for output " << i << ":" << endl;
+            out << "Models for output " << i << ":" << std::endl;
             out << learner.modelLists[i].toString(learner.inputNames, learner.outputNames[i]);
         }
 

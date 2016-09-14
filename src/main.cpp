@@ -26,8 +26,6 @@ using Cocotte::Approximators::Polynomial;
 #include <cocotte/learner.h>
 using Cocotte::Learner;
 
-#include <soplex/src/soplex.h>
-
 
 vector<vector<unsigned int>> computeErrors(vector<vector<vector<double>>> const& estimations,
                                            vector<vector<vector<double>>> const& targets,

@@ -400,6 +400,7 @@ template <typename ApproximatorType>
 std::string ModelList<ApproximatorType>::toString(std::vector<std::string> inputNames, std::vector<std::string> outputNames) const
 {
     using std::stringstream;
+    using std::endl;
 
     auto const mEnd = models.end();
     auto mIt = models.begin();
@@ -460,6 +461,7 @@ template <typename ApproximatorType>
 std::shared_ptr<Models::Model> ModelList<ApproximatorType>::tryMerge(std::shared_ptr<Models::Model> model0, std::shared_ptr<Models::Model> model1, bool markAsTemporary)
 {
     using std::min;
+    using std::vector;
     using std::list;
     using std::shared_ptr;
     using std::static_pointer_cast;
@@ -580,6 +582,7 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
                                                                                              bool noRollback,
                                                                                              bool addToExistingModelsOnly)
 {
+    using std::vector;
     using std::list;
     using std::deque;
     using std::priority_queue;
