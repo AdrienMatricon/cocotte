@@ -87,6 +87,8 @@ public:
 
     friend std::ostream& operator<< (std::ostream& out, Learner<ApproximatorType> const& learner)
     {
+        using std::endl;
+
         out << "Model for output 0:" << endl;
         out << learner.modelLists[0].toString(learner.inputNames, learner.outputNames[0]);
 

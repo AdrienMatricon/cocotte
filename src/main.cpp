@@ -26,8 +26,6 @@ using Cocotte::Approximators::Polynomial;
 #include <cocotte/learner.h>
 using Cocotte::Learner;
 
-#include <soplex/src/soplex.h>
-
 
 vector<vector<unsigned int>> computeErrors(vector<vector<vector<double>>> const& estimations,
                                            vector<vector<vector<double>>> const& targets,
@@ -158,12 +156,16 @@ void dumpEstimates(string fileName,
 
 int main(int argc, char *argv[])
 {
+    bool showAll = true;
+    string action;
+
     if (argc > 1)
     {
-        string action = argv[1];
+        action = argv[1];
 
         if (action == "learn")
         {
+            showAll = false;
             if (argc >= 6)
             {
                 string mode = "normal";
@@ -244,6 +246,7 @@ int main(int argc, char *argv[])
         }
         else if (action == "test")
         {
+            showAll = false;
             if ((argc >= 6) && (argc <= 7))
             {
                 unsigned int nbPoints = 10000;
@@ -280,6 +283,7 @@ int main(int argc, char *argv[])
         }
         else if (action == "evaluate")
         {
+            showAll = false;
             if (argc >= 7)
             {
                 string inputFile = argv[2];
@@ -381,8 +385,20 @@ int main(int argc, char *argv[])
         }
     }
 
-    cerr << "Usage: cocotte learn <training data file> <data structure file> <nb points for training> <output file for models> [other output files for models]" << endl;
-    cerr << "Usage: cocotte test <models data file> <test data file> <data structure file> <output file> [nb points to predict=10000]" << endl;
-    cerr << "Usage: cocotte evaluate <input data file> <data structure file> <nb points for testing> <outputFile> <models data file> [other models data file]" << endl;
+    if (showAll || (action == "learn"))
+    {
+        cerr << "Usage: cocotte learn <training data file> <data structure file> <nb points for training> <output file for models> [other output files for models]" << endl;
+    }
+
+    if (showAll || (action == "test"))
+    {
+        cerr << "Usage: cocotte test <models data file> <test data file> <data structure file> <output file> [nb points to predict=10000]" << endl;
+    }
+
+    if (showAll || (action == "evaluate"))
+    {
+        cerr << "Usage: cocotte evaluate <test data file> <data structure file> <nb points for testing> <outputFile> <models data file> [other models data file]" << endl;
+    }
+
     return 1;
 }

@@ -176,7 +176,7 @@ $ cocotte test models.txt test.csv structure.txt output.csv 10000
 #### cocotte evaluate
 Here is an example of `cocotte evaluate` call:
 ```sh
-# cocotte evaluate <input data file> <data structure file> <nb points for testing> <outputFile>
+# cocotte evaluate <test data file> <data structure file> <nb points for testing> <outputFile>
 # <models data file> [other models data file]
 $ cocotte evaluate test.csv structure.txt 10000 evaluation.csv models0.txt models1.txt models2.txt
 ```
