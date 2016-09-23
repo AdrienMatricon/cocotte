@@ -5,7 +5,12 @@ locally smooth function, which can be used to discover discrete, meaningful
 forward-parameterized skills from a set of behaviour examples.
 
 ## Publications
-- A.Matricon, D.Filliat, P-Y.Oudeyer, *An Iterative Algorithm for Forward-Parameterized Skill Discovery*, ICDL-EPIROB, 2016 (coming soon)
+- **[An Iterative Algorithm for Forward-Parameterized Skill Discovery][icdl-epirob-2016]**  
+&nbsp;&nbsp;&nbsp;&nbsp; Adrien Matricon, David Filliat and Pierre-Yves Oudeyer (2016)  
+&nbsp;&nbsp;&nbsp;&nbsp; *Proceedings of the The Sixth Joint IEEE International Conference Developmental Learning  
+&nbsp;&nbsp;&nbsp;&nbsp; and Epigenetic Robotics (ICDL EPIROB 2016)*
+
+[icdl-epirob-2016]:https://hal.archives-ouvertes.fr/hal-01370820
 
 ## Before starting
 If you read about COCOTTE in a publication, you may be more interested in the version of COCOTTE
