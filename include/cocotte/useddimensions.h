@@ -17,14 +17,15 @@ class UsedDimensions
 private:
     unsigned int nbUsed;
     unsigned int totalNbDimensions;
-    std::list<unsigned int> dimensionsIds;
+    std::list<unsigned int> dimensionsIDs;
+    int latestAddedDimension = -1;
 
 public:
 
     // Constructors
-    UsedDimensions() = default;
-    explicit UsedDimensions(unsigned int totalNbDimensions, std::list<unsigned int> dimensionsIds);
-    explicit UsedDimensions(unsigned int totalNbDimensions, std::list<unsigned int> dimensionsIds, unsigned int nbUsed);
+    UsedDimensions() = default; // Necessary for serialization, but do not call it yourself
+    explicit UsedDimensions(unsigned int totalNbDimensions,
+                            std::list<unsigned int> dimensionsIDs = std::list<unsigned int>{});
 
     // Main functions
     std::list<unsigned int> const& getIds() const;
@@ -33,9 +34,18 @@ public:
     std::list<unsigned int> unusedDimensionsIds() const;
     void addDimension(unsigned int id);
 
+    // Accessor and setter
+    int getLatestAddedDimension();
+    void resetLatestAddedDimension();
+
+    // Returns a UsedDimensions using every dimensions
+    static UsedDimensions allDimensions(unsigned int totalNbDimensions);
+
     // Returns a list of combinations of d used dimensions
     std::list<UsedDimensions> getCombinationsFromUsed(unsigned int d) const;
-    // Same but with also combinations d-1 used dimensions and an unused one
+    // Same but with combinations of d-1 used dimensions and an unused one
+    std::list<UsedDimensions> getCombinationsFromUsedAndExactlyOne(unsigned int d) const;
+    // Returns both of the above
     std::list<UsedDimensions> getCombinationsFromUsedAndOne(unsigned int d) const;
 
     // Operators
@@ -52,9 +62,11 @@ public:
     template<typename Archive>
     friend void serialize(Archive& archive, UsedDimensions& usedDimensions, const unsigned int version)
     {
+        (void) version; // Unused parameter
+
         archive & usedDimensions.nbUsed;
         archive & usedDimensions.totalNbDimensions;
-        archive & usedDimensions.dimensionsIds;
+        archive & usedDimensions.dimensionsIDs;
     }
 
     // Display
@@ -64,8 +76,8 @@ public:
 
         if (uDims.nbUsed > 0)
         {
-            auto const dEnd = uDims.dimensionsIds.end();
-            auto dIt = uDims.dimensionsIds.begin();
+            auto const dEnd = uDims.dimensionsIDs.end();
+            auto dIt = uDims.dimensionsIDs.begin();
 
             out << *dIt;
 

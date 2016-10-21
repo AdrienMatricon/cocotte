@@ -23,8 +23,6 @@ class ModelList final
 
 private:
 
-    static ApproximatorType approximator;
-
     // Each model is a binary tree :
     // - each leaf contains a point
     // - each node contains a form of the approximator that explains all points under it
@@ -35,8 +33,7 @@ private:
     unsigned int nbOutputDims;        // number of dimensions in the output
     unsigned int nbModels = 0;
 
-    cv::RandomTrees classifier;
-    bool trainedClassifier = false;
+    std::shared_ptr<cv::RandomTrees> classifier;
 
 
 public:
@@ -129,6 +126,8 @@ private:
     template<typename Archive>
     friend void serialize(Archive& archive, ModelList<ApproximatorType>& mList, const unsigned int version)
     {
+        (void) version; // Unused parameter
+
         archive.template register_type<Models::Leaf>();
         archive.template register_type<Models::Node>();
         archive & mList.models;

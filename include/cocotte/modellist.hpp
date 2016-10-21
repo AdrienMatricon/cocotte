@@ -19,11 +19,6 @@ namespace Cocotte {
 
 
 
-template <typename ApproximatorType>
-ApproximatorType ModelList<ApproximatorType>::approximator;
-
-
-
 // Constructor
 template <typename ApproximatorType>
 ModelList<ApproximatorType>::ModelList(unsigned int oID, unsigned int nId, unsigned int nOd): outputID(oID), nbInputDims(nId), nbOutputDims(nOd)
@@ -60,7 +55,7 @@ void ModelList<ApproximatorType>::addModel(std::shared_ptr<Models::Model> model)
 {
     models.push_back(model);
     ++nbModels;
-    trainedClassifier = false;
+    classifier.reset();
 }
 
 
@@ -76,7 +71,7 @@ void ModelList<ApproximatorType>::removeFirstModel()
 {
     models.pop_front();
     --nbModels;
-    trainedClassifier = false;
+    classifier.reset();
 }
 
 
@@ -99,7 +94,7 @@ void ModelList<ApproximatorType>::addPoint(std::shared_ptr<DataPoint const> poin
                                         noRollback,
                                         true));
 
-    trainedClassifier = false;
+    classifier.reset();
     nbModels = models.size();
 }
 
@@ -123,7 +118,7 @@ void ModelList<ApproximatorType>::addPoints(std::vector<std::shared_ptr<DataPoin
 
     models = move(mergeAsMuchAsPossible(move(newLeaves), move(models), noRollback, addToExistingModelsOnly));
 
-    trainedClassifier = false;
+    classifier.reset();
     nbModels = models.size();
 }
 
@@ -143,7 +138,7 @@ void ModelList<ApproximatorType>::restructureModels()
     using Models::Node;
 
 
-    trainedClassifier = false;
+    classifier.reset();
 
     list<shared_ptr<Model>> toProcess = move(models);
     models = list<shared_ptr<Model>>{};
@@ -224,7 +219,7 @@ bool ModelList<ApproximatorType>::canBePredicted(std::vector<std::shared_ptr<Dat
 
             for (auto const& f : model->getForms())
             {
-                auto prediction = approximator.estimate(f, xVal)[0];
+                auto prediction = ApproximatorType::estimate(f, xVal)[0];
 
                 if (abs(prediction - tVal[i]) > tPrec[i])
                 {
@@ -308,8 +303,8 @@ void ModelList<ApproximatorType>::trainClassifier()
         }
     }
 
-    classifier.train(data, CV_ROW_SAMPLE, classification, Mat(), Mat(), Mat(), Mat(), params);
-    trainedClassifier = true;
+    classifier = std::shared_ptr<cv::RandomTrees>(new cv::RandomTrees);
+    classifier->train(data, CV_ROW_SAMPLE, classification, Mat(), Mat(), Mat(), Mat(), params);
 }
 
 
@@ -323,7 +318,7 @@ std::vector<unsigned int> ModelList<ApproximatorType>::selectModels(std::vector<
     unsigned int const nbVars = points[0].size();
     vector<unsigned int> result(nbPoints);
 
-    if (!trainedClassifier)
+    if (!classifier)
     {
         trainClassifier();
     }
@@ -336,7 +331,7 @@ std::vector<unsigned int> ModelList<ApproximatorType>::selectModels(std::vector<
             point.at<float>(0,j) = points[i][j];
         }
 
-        result[i] = static_cast<unsigned int>(classifier.predict(point) + 0.5f);
+        result[i] = static_cast<unsigned int>(classifier->predict(point) + 0.5f);
     }
 
     return result;
@@ -361,7 +356,7 @@ std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vecto
         estimates.reserve(nbOutputDims);
         for (auto const& f : forms)
         {
-            estimates.push_back(approximator.estimate(f, points));
+            estimates.push_back(ApproximatorType::estimate(f, points));
         }
         possibleValues.push_back(estimates);
     }
@@ -413,7 +408,7 @@ std::string ModelList<ApproximatorType>::toString(std::vector<std::string> input
         result << "model " << k << ":" << endl;
         for (unsigned int i = 0; i < nbOutputDims; ++i)
         {
-            result << outputNames[i] << ": " << approximator.formToString(forms[i], inputNames) << endl;
+            result << outputNames[i] << ": " << ApproximatorType::formToString(forms[i], inputNames) << endl;
         }
         ++k; ++mIt;
     }
@@ -424,7 +419,7 @@ std::string ModelList<ApproximatorType>::toString(std::vector<std::string> input
         result << "model " << k << ":" << endl;
         for (unsigned int i = 0; i < nbOutputDims; ++i)
         {
-            result << outputNames[i] << ": " << approximator.formToString(forms[i], inputNames) << endl;
+            result << outputNames[i] << ": " << ApproximatorType::formToString(forms[i], inputNames) << endl;
         }
     }
 
@@ -448,7 +443,7 @@ std::shared_ptr<Models::Model> ModelList<ApproximatorType>::createLeaf(std::shar
 
     for (auto const outDim : point->t[outputID])
     {
-        forms.push_back(approximator.fitOnePoint(outDim.value, nbInputDims));
+        forms.push_back(ApproximatorType::fitOnePoint(outDim.value, nbInputDims));
     }
 
     return shared_ptr<Model>(new Leaf(forms, point, markAsTemporary));
@@ -461,6 +456,7 @@ template <typename ApproximatorType>
 std::shared_ptr<Models::Model> ModelList<ApproximatorType>::tryMerge(std::shared_ptr<Models::Model> model0, std::shared_ptr<Models::Model> model1, bool markAsTemporary)
 {
     using std::min;
+    using std::max;
     using std::vector;
     using std::list;
     using std::shared_ptr;
@@ -471,7 +467,6 @@ std::shared_ptr<Models::Model> ModelList<ApproximatorType>::tryMerge(std::shared
     using Models::Leaf;
     using Models::Node;
 
-
     // We determine if new node should be temporary
     markAsTemporary = (markAsTemporary || model0->isTemporary() || model1->isTemporary());
 
@@ -480,86 +475,128 @@ std::shared_ptr<Models::Model> ModelList<ApproximatorType>::tryMerge(std::shared
     auto const mBegin = Models::pointsBegin(const_pointer_cast<Model const>(node));
     auto const mEnd = Models::pointsEnd(const_pointer_cast<Model const>(node));
 
-    vector<Form> forms0 = model0->getForms(), forms1 = model1->getForms();
+    vector<Form> const forms0 = model0->getForms(), forms1 = model1->getForms();
     vector<Form> newForms;
 
     for (unsigned int dim = 0; dim < nbOutputDims; ++dim)
     {
         Form const form0 = forms0[dim], form1 = forms1[dim];
-        UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
+        unsigned int const totalNbDimensions = form0.usedDimensions.getTotalNbDimensions();
 
-        bool success = false;
-        Form newForm;
+//        UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
+        UsedDimensions availableDimensions = UsedDimensions::allDimensions(totalNbDimensions);
 
-        // We check that a merge is possible
+        // We look for a form that would fit the points,
+        //   and use a binary search to get the lowest complexity one
+        // We don't immediately test the highest complexity
+        //   because the computational cost can be prohibitive
+        unsigned int const minPossibleComplexity = max(form0.complexity, form1.complexity);
+        unsigned int const maxPossibleComplexity = form0.complexity + form1.complexity;
+
+        unsigned int lowerBound = minPossibleComplexity;
+        unsigned int upperBound = maxPossibleComplexity;
+
+        // Instead of trying one complexity in [lowerBound, upperBound],
+        //   we will consider a range, so that we consider forms with lower
+        //   complexities which use more dimensions.
+        // That way, if no form in the range fits, we know the complexity was not high enough
+        unsigned int middleComplexityRangeLowerBound,  middleComplexityRangeUpperBound;
+
+        // We store the best form we found
+        Form bestNewForm;
+
+
+        while (upperBound > lowerBound)
         {
-            // We list the most complex forms available
-            list<list<Form>> possibleForms = approximator.getMostComplexForms(availableDimensions, form0.complexity + form1.complexity);
-
-            for (auto& someForms : possibleForms)
+            if (upperBound - lowerBound < 5)
             {
-                for (auto& form : someForms)
+                // We finish in one go
+                middleComplexityRangeUpperBound = upperBound;
+                middleComplexityRangeLowerBound = lowerBound;
+            }
+            else
+            {
+                middleComplexityRangeUpperBound = (lowerBound + upperBound) / 2;
+                middleComplexityRangeLowerBound =
+                        ApproximatorType::getComplexityRangeLowerBound(totalNbDimensions, middleComplexityRangeUpperBound);
+            }
+
+            auto possibleForms = ApproximatorType::getFormsInComplexityRange(availableDimensions,
+                                                                        middleComplexityRangeLowerBound,
+                                                                        middleComplexityRangeUpperBound);
+
+
+            bool success = false;
+
+            // We try to fit the points using no new dimension
+            {
+                for (auto& someForms : possibleForms.first)
                 {
-                    // For each form, we try to fit all points
-                    if (approximator.tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
+                    for (auto& form : someForms)
                     {
-                        success = true;
-                        newForm = form;
+                        // For each form, we try to fit all points
+                        if (ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
+                        {
+                            bestNewForm = form;
+                            upperBound = middleComplexityRangeLowerBound - 1u;
+                            success = true;
+                            break;
+                        }
+                    }
+
+                    if (success)
+                    {
                         break;
                     }
                 }
-
-                if (success)
-                {
-                    break;
-                }
             }
-        }
 
-        if (!success)
-        {
-            // We did not succeed, so we return a default-constructed shared_ptr
-            return shared_ptr<Model>{};
-        }
-
-        // Otherwise, if we succeeded, we try to find the best form
-        int minSuccess = newForm.complexity;
-        int maxFail = min(form0.complexity, form1.complexity) - 1;  // Sure to fail
-
-        while (maxFail != minSuccess - 1)
-        {
-            int middle = (maxFail + minSuccess) / 2;
-            list<list<Form>> possibleForms = approximator.getMostComplexForms(availableDimensions, middle);
-
-            success = false;
-
-            for (auto& someForms : possibleForms)
-            {
-                for (auto& form : someForms)
-                {
-                    // For each form, we try to fit all points
-                    if (approximator.tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
-                    {
-                        success = true;
-                        newForm = form;
-                        minSuccess = newForm.complexity;
-                        break;
-                    }
-                }
-
-                if (success)
-                {
-                    break;
-                }
-            }
+            // If they were not enough, we try to fit the points using one new dimension.
+            // In case of success,
+            //   and we reset lowerBound to the minimum possible complexity
+            //   in case those new dimensions help us find simpler solutions
+//            if (!success)
+//            {
+//                for (auto& someForms : possibleForms.second)
+//                {
+//                    for (auto& form : someForms)
+//                    {
+//                        // For each form, we try to fit all points
+//                        if (ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
+//                        {
+//                            int const latestDim = form.usedDimensions.getLatestAddedDimension();
+//                            availableDimensions.addDimension(latestDim);    // We remember the dimensions that allowed us to fit the
+//                            // points so that we can use them in the next iterations
+//
+//                            lowerBound = minPossibleComplexity;             // We reset lowerBound in case the new dimensions
+//                                                                            // help us find simpler solutions
+//
+//                            if (!success)   // we keep the first form that worked (lowest complexity, lowest number of DoFs)
+//                            {
+//
+//                                bestNewForm = form;
+//                                upperBound = middleComplexityRangeLowerBound - 1u;
+//                                success = true;
+//                            }
+//                        }
+//                    }
+//                }
+//            }
 
             if (!success)
             {
-                maxFail = middle;
+                lowerBound = middleComplexityRangeUpperBound + 1u;
             }
         }
 
-        newForms.push_back(newForm);
+        if (bestNewForm.complexity == 0)
+        {
+            // We never succeeded
+            // => we return a default-constructed shared_ptr
+            return shared_ptr<Model>{};
+        }
+
+        newForms.push_back(bestNewForm);
     }
 
     static_pointer_cast<Node>(node)->setForms(newForms);
@@ -595,7 +632,6 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
     using Models::Leaf;
     using Models::Node;
     using ModelPair = pair<shared_ptr<Model>,shared_ptr<Model>>;
-
 
     // Special cases
     if (atomicModels.empty())

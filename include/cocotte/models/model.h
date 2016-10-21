@@ -25,7 +25,13 @@ public:
 
     // Serialization
     template<typename Archive>
-    friend void serialize(Archive& archive, Model& model, const unsigned int version){}
+    friend void serialize(Archive& archive, Model& model, const unsigned int version)
+    {
+        // Unused parameters
+        (void) archive;
+        (void) model;
+        (void) version;
+    }
 
 };
 

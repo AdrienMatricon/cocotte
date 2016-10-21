@@ -45,6 +45,8 @@ public:
     template<typename Archive>
     friend void serialize(Archive& archive, Leaf& leaf, const unsigned int version)
     {
+        (void) version; // Unused parameter
+
         archive & boost::serialization::base_object<Model>(leaf);
         archive & leaf.forms;
         archive & leaf.pointAddress;

@@ -190,6 +190,8 @@ IteratorType pointsEnd(std::shared_ptr<ModelType> pModel)
     using std::list;
     using std::shared_ptr;
 
+    (void) pModel;  // Unused parameter
+
     return IteratorType(list<shared_ptr<ModelType>>{});
 }
 

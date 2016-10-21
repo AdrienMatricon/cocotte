@@ -19,6 +19,8 @@ struct Measure
     template<typename Archive>
     friend void serialize(Archive& archive, Measure& measure, const unsigned int version)
     {
+        (void) version; // Unused parameter
+
         archive & measure.value;
         archive & measure.precision;
     }
@@ -33,6 +35,8 @@ struct DataPoint
     template<typename Archive>
     friend void serialize(Archive& archive, DataPoint& point, const unsigned int version)
     {
+        (void) version; // Unused parameter
+
         archive & point.x;
         archive & point.t;
     }

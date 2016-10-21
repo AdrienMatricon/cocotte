@@ -45,9 +45,9 @@ DataLoader::DataLoader(string dataFileName,
 
     set<string> usedVars;
 
-    unordered_map<string, double> varToFixedPrecision;
-    unordered_map<string, string> varToPrecision;
-    unordered_map<string, string> precisionToVar;
+    unordered_map<string, double> varNameToFixedPrecision;
+    unordered_map<string, string> varNameToPrecisionName;
+    unordered_map<string, string> precisionNameToVarName;
 
     unordered_map<string, unsigned int> inputIDs;
     unordered_map<string, pair<unsigned int, unsigned int>> outputIDs;
@@ -93,12 +93,12 @@ DataLoader::DataLoader(string dataFileName,
             {
                 if (isDouble(cut[1]))
                 {
-                    varToFixedPrecision.emplace(cut[0], stod(cut[1]));
+                    varNameToFixedPrecision.emplace(cut[0], stod(cut[1]));
                 }
                 else
                 {
-                    varToPrecision.emplace(cut[0], cut[1]);
-                    precisionToVar.emplace(cut[1], cut[0]);
+                    varNameToPrecisionName.emplace(cut[0], cut[1]);
+                    precisionNameToVarName.emplace(cut[1], cut[0]);
                 }
             }
 
@@ -188,26 +188,24 @@ DataLoader::DataLoader(string dataFileName,
     unsigned int const nbOutputs = outputVariableNames.size();
     vector<unsigned int> outputDimensions(nbOutputs);
 
-    vector<bool> fixedPrecisionInput(nbInputs, false);
-    vector<double> inputPrecisions(nbInputs, 0.);
-    vector<vector<bool>> fixedPrecisionOutput(nbOutputs);
-    vector<vector<double>> outputPrecisions(nbOutputs);
+    vector<bool> isFixedPrecisionInput(nbInputs, false);
+    vector<double> inputIDToFixedPrecision(nbInputs, 0.);
+    vector<vector<bool>> isFixedPrecisionOutput(nbOutputs);
+    vector<vector<double>> outputIDToFixedPrecision(nbOutputs);
 
     for (unsigned int i = 0; i < nbInputs; ++i)
     {
         string const name = inputVariableNames[i];
-        if (varToPrecision.count(name) == 0)
+        if (varNameToPrecisionName.count(name) == 0)
         {
-            fixedPrecisionInput[i] = true;
+            // If there is no precision variable, then the input precision is fixed
+            isFixedPrecisionInput[i] = true;
 
-            if (varToFixedPrecision.count(name) == 0)
+            if (varNameToFixedPrecision.count(name) != 0)
             {
-                // ATTENTION: If input precision is used in the future, this will have to be changed
-                fixedPrecisionInput[i] = 0.;
-            }
-            else
-            {
-                fixedPrecisionInput[i] = varToFixedPrecision.at(name);
+                // If a fixed precision is specified, we use it
+                // Otherwise we leave it at 0 (infinite precision)
+                inputIDToFixedPrecision[i] = varNameToFixedPrecision.at(name);
             }
         }
     }
@@ -222,24 +220,24 @@ DataLoader::DataLoader(string dataFileName,
         for (unsigned int j = 0; j < nbDims; ++j)
         {
             string const name = outputVariableNames[i][j];
-            if (varToPrecision.count(name) == 0)
+            if (varNameToPrecisionName.count(name) == 0)
             {
                 fixed[j] = true;
 
-                if (varToFixedPrecision.count(name) == 0)
+                if (varNameToFixedPrecision.count(name) == 0)
                 {
                     cerr << "Error: No precision for one of the outputs" << endl;
                     exit(1);
                 }
                 else
                 {
-                    prec[j] = varToFixedPrecision.at(name);
+                    prec[j] = varNameToFixedPrecision.at(name);
                 }
             }
         }
 
-        fixedPrecisionOutput[i] = fixed;
-        outputPrecisions[i] = prec;
+        isFixedPrecisionOutput[i] = fixed;
+        outputIDToFixedPrecision[i] = prec;
     }
 
 
@@ -292,10 +290,10 @@ DataLoader::DataLoader(string dataFileName,
             string name = names[i];
             bool isPrec = false;
 
-            if (precisionToVar.count(name) > 0)
+            if (precisionNameToVarName.count(name) > 0)
             {
                 isPrec = true;
-                name = precisionToVar.at(name);
+                name = precisionNameToVarName.at(name);
             }
 
             if (usedVars.count(name) == 0)
@@ -352,10 +350,10 @@ DataLoader::DataLoader(string dataFileName,
 
         for (unsigned int i = 0; i < nbInputs; ++i)
         {
-            if (fixedPrecisionInput[i])
+            if (isFixedPrecisionInput[i])
             {
                 point.x.push_back(Measure{vals[inputColumnID[i]],
-                                          inputPrecisions[i]});
+                                          inputIDToFixedPrecision[i]});
             }
             else
             {
@@ -374,10 +372,10 @@ DataLoader::DataLoader(string dataFileName,
 
             for (unsigned int j = 0; j < outputSize; ++j)
             {
-                if (fixedPrecisionOutput[i][j])
+                if (isFixedPrecisionOutput[i][j])
                 {
                     out.push_back(Measure{vals[outputColumnID[i][j]],
-                                              outputPrecisions[i][j]});
+                                              outputIDToFixedPrecision[i][j]});
                 }
                 else
                 {

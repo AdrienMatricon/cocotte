@@ -78,6 +78,8 @@ public:
     template<typename Archive>
     friend void serialize(Archive& archive, Learner<ApproximatorType>& learner, const unsigned int version)
     {
+        (void) version; // Unused parameter
+
         archive & learner.inputNames;
         archive & learner.outputNames;
         archive & learner.nbOutputs;

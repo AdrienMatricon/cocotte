@@ -16,6 +16,8 @@ using std::stringstream;
 using std::ofstream;
 #include <vector>
 using std::vector;
+#include <memory>
+using std::unique_ptr;
 #include <cocotte/datatypes.h>
 using Cocotte::DataPoint;
 #include <datasources/dataloader.h>
@@ -185,7 +187,7 @@ int main(int argc, char *argv[])
                 unsigned int const nbPointsPerBatch = nbPoints/nbBatches;
                 unsigned int const nbPointsLastBatch = nbPoints - (nbPointsPerBatch * (nbBatches-1));
 
-                DataSource* source = new DataLoader(trainingData, dataStructure);
+                unique_ptr<DataSource> source(new DataLoader(trainingData, dataStructure));
                 cout << "Data loaded." << endl;
                 Learner<Polynomial> learner(source->getInputVariableNames(), source->getOutputVariableNames());
 
@@ -267,7 +269,7 @@ int main(int argc, char *argv[])
                 cout << learner << endl << endl;
 
                 cout << "Loading input data... "; cout.flush();
-                DataSource* source = new DataLoader(inputFile, dataStructure, learner.getInputNames(), learner.getOutputNames());
+                unique_ptr<DataSource> source(new DataLoader(inputFile, dataStructure, learner.getInputNames(), learner.getOutputNames()));
                 cout << "done." << endl;
 
                 cout << "Computing..." << endl;
@@ -321,7 +323,7 @@ int main(int argc, char *argv[])
                 result << endl;
 
                 cout << "Loading input data... "; cout.flush();
-                DataSource* source = new DataLoader(inputFile, dataStructure, learner.getInputNames(), outputNames);
+                unique_ptr<DataSource> source(new DataLoader(inputFile, dataStructure, learner.getInputNames(), outputNames));
                 auto points = source->getTestDataPoints(nbPoints);
                 vector<vector<double>> const& inputs = points.first;
                 vector<vector<vector<double>>> const& targets = points.second.first;

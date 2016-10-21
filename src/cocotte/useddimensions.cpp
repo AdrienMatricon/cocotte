@@ -15,16 +15,10 @@ namespace Cocotte {
 
 
 // Constructors
-UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dimensions):
-    nbUsed(dimensions.size()),
-    totalNbDimensions(nbDimensions),
-    dimensionsIds(dimensions)
-{}
-
-UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dimensions, unsigned int used):
-    nbUsed(used),
-    totalNbDimensions(nbDimensions),
-    dimensionsIds(dimensions)
+UsedDimensions::UsedDimensions(unsigned int totalNb, list<unsigned int> ids):
+    nbUsed(ids.size()),
+    totalNbDimensions(totalNb),
+    dimensionsIDs(ids)
 {}
 
 
@@ -32,7 +26,7 @@ UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dim
 // Main functions
 list<unsigned int> const& UsedDimensions::getIds() const
 {
-    return dimensionsIds;
+    return dimensionsIDs;
 }
 
 
@@ -52,8 +46,8 @@ list<unsigned int> UsedDimensions::unusedDimensionsIds() const
 {
     list<unsigned int> result;
 
-    auto dIter = dimensionsIds.begin();
-    auto const dEnd = dimensionsIds.end();
+    auto dIter = dimensionsIDs.begin();
+    auto const dEnd = dimensionsIDs.end();
 
     unsigned int i = 0;
 
@@ -89,8 +83,8 @@ list<unsigned int> UsedDimensions::unusedDimensionsIds() const
 
 void UsedDimensions::addDimension(unsigned int id)
 {
-    auto dIter = dimensionsIds.begin();
-    auto dEnd = dimensionsIds.end();
+    auto dIter = dimensionsIDs.begin();
+    auto dEnd = dimensionsIDs.end();
 
     // We go through the list until we reach its end or find a value above id
     while ((dIter != dEnd) && (*dIter < id))
@@ -101,9 +95,35 @@ void UsedDimensions::addDimension(unsigned int id)
     // If id is not already in the list, we add it
     if ((dIter == dEnd) || (*dIter > id))
     {
-        dimensionsIds.insert(dIter, id);
+        dimensionsIDs.insert(dIter, id);
         ++nbUsed;
+        latestAddedDimension = id;
     }
+}
+
+
+// Accessor and setter
+int UsedDimensions::getLatestAddedDimension()
+{
+    return latestAddedDimension;
+}
+
+
+void UsedDimensions::resetLatestAddedDimension()
+{
+    latestAddedDimension = -1;
+}
+
+
+// Returns a UsedDimensions using every dimensions
+UsedDimensions UsedDimensions::allDimensions(unsigned int totalNbDimensions)
+{
+    list<unsigned int> ids;
+    for (unsigned int i = 0u; i < totalNbDimensions; ++i)
+    {
+        ids.push_back(i);
+    }
+    return UsedDimensions(totalNbDimensions, ids);
 }
 
 
@@ -118,11 +138,11 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) con
     else if (d < 1)
     {
         // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<unsigned int>{}));
+        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions));
     }
 
     // We convert the list to a vector to access it more easily
-    vector<unsigned int> const asVector(dimensionsIds.begin(), dimensionsIds.end());
+    vector<unsigned int> const asVector(dimensionsIDs.begin(), dimensionsIDs.end());
 
 
     // We create a vector of pairs to generate the combination
@@ -156,43 +176,49 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) con
 
     for (auto const& comb:combinations)
     {
-        result.push_back(UsedDimensions(totalNbDimensions, std::get<0>(comb), d));
+        result.push_back(UsedDimensions(totalNbDimensions, std::get<0>(comb)));
     }
 
     return result;
 }
 
 
-// Same but also with combinations of d-1 used dimensions and an unused one
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int d) const
+// Same but with combinations of d-1 used dimensions and an unused one
+list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndExactlyOne(unsigned int d) const
 {
-    if ( (d-1) > nbUsed )
+    if ( (d > nbUsed + 1) || (d > totalNbDimensions) )
     {
         // No combination works
         return list<UsedDimensions>{};
     }
-    else if (d < 1)
-    {
-        // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<unsigned int>{}));
-    }
 
-    auto result = getCombinationsFromUsed(d);
     auto const partialResult = getCombinationsFromUsed(d-1);
     auto const complement = unusedDimensionsIds();
 
-
+    list<UsedDimensions> result;
     for (auto& dim : complement)
     {
-        auto pR = partialResult;
-        for (auto& comb : pR)
+        auto partialResultCopy = partialResult;
+        for (auto& comb : partialResultCopy)
         {
             comb.addDimension(dim);
         }
-        result.insert(result.end(), pR.begin(), pR.end());
+        result.insert(result.end(), partialResultCopy.begin(), partialResultCopy.end());
     }
 
     return result;
+}
+
+
+// Returns both of the above
+list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int d) const
+{
+    auto combinations = getCombinationsFromUsed(d);
+    auto otherCombinations = getCombinationsFromUsedAndExactlyOne(d);
+
+    combinations.insert(combinations.end(), otherCombinations.begin(), otherCombinations.end());
+
+    return combinations;
 }
 
 
@@ -200,14 +226,16 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int 
 // Operators
 UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
 {
-    auto dIter0 = dimensionsIds.begin(),
-            dIter1 = otherDimensions.dimensionsIds.begin();
-    auto const dEnd1 = otherDimensions.dimensionsIds.end();
+    resetLatestAddedDimension();
+
+    auto dIter0 = dimensionsIDs.begin(),
+            dIter1 = otherDimensions.dimensionsIDs.begin();
+    auto const dEnd1 = otherDimensions.dimensionsIDs.end();
 
     // If one of the list is empty, the union is equal to the other
-    if (dIter0 == dimensionsIds.end())
+    if (dIter0 == dimensionsIDs.end())
     {
-        dimensionsIds = otherDimensions.dimensionsIds;
+        dimensionsIDs = otherDimensions.dimensionsIDs;
         nbUsed = otherDimensions.nbUsed;
         return *this;
     }
@@ -234,7 +262,7 @@ UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
         {
             // If we passed dim0, we increment the iterator and to see if dim1 was between both values of dim0
             // If it is the case, dim1 is not in dimensionsIds and we insert it
-            if (++dIter0 == dimensionsIds.end())
+            if (++dIter0 == dimensionsIDs.end())
             {
                 break;
             }
@@ -242,7 +270,7 @@ UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
             dim0 = *dIter0;
             if (dim0 > dim1)
             {
-                dimensionsIds.insert(dIter0, dim1);
+                dimensionsIDs.insert(dIter0, dim1);
                 ++nbUsed;
                 if(++dIter1 == dEnd1)
                 {
@@ -262,7 +290,7 @@ UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
                 return *this;
             }
 
-            if (++dIter0 == dimensionsIds.end())
+            if (++dIter0 == dimensionsIDs.end())
             {
                 break;
             }
@@ -273,8 +301,8 @@ UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
     }
 
     // We append the remaining dimensions to dimensionsIds
-    dimensionsIds.insert(dIter0, dIter1, dEnd1);
-    nbUsed = dimensionsIds.size();
+    dimensionsIDs.insert(dIter0, dIter1, dEnd1);
+    nbUsed = dimensionsIDs.size();
 
     return *this;
 }
