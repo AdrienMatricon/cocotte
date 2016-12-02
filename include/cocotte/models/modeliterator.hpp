@@ -233,6 +233,8 @@ double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType
 
 double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, unsigned int outputID)
 {
+    using std::abs;
+
     double dist = 0.;
 
     for (auto it0 = point0.x.begin(), end0 = point0.x.end(), it1 = point1.x.begin();

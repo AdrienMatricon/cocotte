@@ -276,9 +276,9 @@ int main(int argc, char *argv[])
 
                 auto points = source->getTestDataPoints(nbPoints);
                 vector<vector<unsigned int>> modelIDs;
-                auto estimates = learner.predict(points.first, &modelIDs);
+                auto estimates = learner.predict(points.xValues, &modelIDs);
                 cout << "Outputs predicted. Dumping data... "; cout.flush();
-                dumpEstimates(outputFile, learner.getInputNames(), learner.getOutputNames(), points.first, estimates, points.second.first, modelIDs);
+                dumpEstimates(outputFile, learner.getInputNames(), learner.getOutputNames(), points.xValues, estimates, points.tValues, modelIDs);
                 cout << "done." << endl;
                 return 0;
             }
@@ -325,9 +325,9 @@ int main(int argc, char *argv[])
                 cout << "Loading input data... "; cout.flush();
                 unique_ptr<DataSource> source(new DataLoader(inputFile, dataStructure, learner.getInputNames(), outputNames));
                 auto points = source->getTestDataPoints(nbPoints);
-                vector<vector<double>> const& inputs = points.first;
-                vector<vector<vector<double>>> const& targets = points.second.first;
-                vector<vector<vector<double>>> const& targetsPrec = points.second.second;
+                vector<vector<double>> const& inputs = points.xValues;
+                vector<vector<vector<double>>> const& targets = points.tValues;
+                vector<vector<vector<double>>> const& targetsPrec = points.tPrecisions;
                 cout << "done." << endl;
 
                 cout << "Processing... "; cout.flush();

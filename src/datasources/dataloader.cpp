@@ -486,7 +486,7 @@ vector<DataPoint> DataLoader::getTrainingDataPoints(unsigned int nbDataPoints)
 }
 
 
-pair<vector<vector<double>>, pair<vector<vector<vector<double>>>, vector<vector<vector<double>>>>> DataLoader::getTestDataPoints(unsigned int nbDataPoints)
+TestData DataLoader::getTestDataPoints(unsigned int nbDataPoints)
 {
     unsigned int const before = testDataInput.size();
 
@@ -504,7 +504,7 @@ pair<vector<vector<double>>, pair<vector<vector<vector<double>>>, vector<vector<
     vector<vector<vector<double>>> const outputPrecs(testDataOutputPrecisions.begin() + after, testDataOutputPrecisions.end());
     testDataOutputPrecisions.resize(after);
 
-    return {inputs, {outputs, outputPrecs}};
+    return {inputs, outputs, outputPrecs};
 }
 
 
@@ -562,6 +562,21 @@ bool DataLoader::isDouble(string item)
     double d; char c;
 
     return ((itemStream >> d) && !(itemStream >> c));
+}
+
+
+unsigned int DataLoader::getNbDataPoints()
+{
+    if (loadedData.empty())
+    {
+        // Test datapoints
+        return testDataOutput.size();
+    }
+    else
+    {
+        // Training datapoints
+        return loadedData.size();
+    }
 }
 
 }
