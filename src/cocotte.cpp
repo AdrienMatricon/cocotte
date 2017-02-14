@@ -16,12 +16,9 @@ using std::stringstream;
 using std::ofstream;
 #include <vector>
 using std::vector;
-#include <memory>
-using std::unique_ptr;
 #include <cocotte/datatypes.h>
 using Cocotte::DataPoint;
 #include <datasources/dataloader.h>
-using DataSources::DataSource;
 using DataSources::DataLoader;
 #include <cocotte/approximators/polynomial.h>
 using Cocotte::Approximators::Polynomial;
@@ -187,9 +184,9 @@ int main(int argc, char *argv[])
                 unsigned int const nbPointsPerBatch = nbPoints/nbBatches;
                 unsigned int const nbPointsLastBatch = nbPoints - (nbPointsPerBatch * (nbBatches-1));
 
-                unique_ptr<DataSource> source(new DataLoader(trainingData, dataStructure));
+                DataLoader source(trainingData, dataStructure);
                 cout << "Data loaded." << endl;
-                Learner<Polynomial> learner(source->getInputVariableNames(), source->getOutputVariableNames());
+                Learner<Polynomial> learner(source.getInputVariableNames(), source.getOutputVariableNames());
 
                 unsigned int const lastBatch = nbBatches - 1;
                 for (unsigned int i = 0; i < lastBatch; ++i)
@@ -198,15 +195,15 @@ int main(int argc, char *argv[])
 
                     if (mode == "incremental")
                     {
-                        learner.addDataPointsIncremental(source->getTrainingDataPoints(nbPointsPerBatch));
+                        learner.addDataPointsIncremental(source.getTrainingDataPoints(nbPointsPerBatch));
                     }
                     else if (mode == "no rollback")
                     {
-                        learner.addDataPointsNoRollback(source->getTrainingDataPoints(nbPointsPerBatch));
+                        learner.addDataPointsNoRollback(source.getTrainingDataPoints(nbPointsPerBatch));
                     }
                     else
                     {
-                        learner.addDataPoints(source->getTrainingDataPoints(nbPointsPerBatch));
+                        learner.addDataPoints(source.getTrainingDataPoints(nbPointsPerBatch));
                     }
 
                     cout << "done." << endl << "Dumping data... "; cout.flush();
@@ -218,11 +215,11 @@ int main(int argc, char *argv[])
 
                 if (mode == "incremental")
                 {
-                    learner.addDataPointsIncremental(source->getTrainingDataPoints(nbPointsLastBatch));
+                    learner.addDataPointsIncremental(source.getTrainingDataPoints(nbPointsLastBatch));
                 }
                 else if (mode == "no rollback")
                 {
-                    learner.addDataPointsNoRollback(source->getTrainingDataPoints(nbPointsLastBatch));
+                    learner.addDataPointsNoRollback(source.getTrainingDataPoints(nbPointsLastBatch));
                     cout << "done." << endl;
                     cout << "Restructuring..."; cout.flush();
                     learner.restructureModels();
@@ -232,7 +229,7 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    learner.addDataPoints(source->getTrainingDataPoints(nbPointsLastBatch));
+                    learner.addDataPoints(source.getTrainingDataPoints(nbPointsLastBatch));
                     cout << "done." << endl;
                     cout << "Removing artifacts..."; cout.flush();
                     learner.removeArtifacts();
@@ -269,12 +266,12 @@ int main(int argc, char *argv[])
                 cout << learner << endl << endl;
 
                 cout << "Loading input data... "; cout.flush();
-                unique_ptr<DataSource> source(new DataLoader(inputFile, dataStructure, learner.getInputNames(), learner.getOutputNames()));
+                DataLoader source(inputFile, dataStructure, learner.getInputNames(), learner.getOutputNames());
                 cout << "done." << endl;
 
                 cout << "Computing..." << endl;
 
-                auto points = source->getTestDataPoints(nbPoints);
+                auto points = source.getTestDataPoints(nbPoints);
                 vector<vector<unsigned int>> modelIDs;
                 auto estimates = learner.predict(points.xValues, &modelIDs);
                 cout << "Outputs predicted. Dumping data... "; cout.flush();
@@ -323,8 +320,8 @@ int main(int argc, char *argv[])
                 result << endl;
 
                 cout << "Loading input data... "; cout.flush();
-                unique_ptr<DataSource> source(new DataLoader(inputFile, dataStructure, learner.getInputNames(), outputNames));
-                auto points = source->getTestDataPoints(nbPoints);
+                DataLoader source(inputFile, dataStructure, learner.getInputNames(), outputNames);
+                auto points = source.getTestDataPoints(nbPoints);
                 vector<vector<double>> const& inputs = points.xValues;
                 vector<vector<vector<double>>> const& targets = points.tValues;
                 vector<vector<vector<double>>> const& targetsPrec = points.tPrecisions;

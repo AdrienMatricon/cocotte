@@ -10,6 +10,7 @@
 #include <memory>
 #include <type_traits>
 #include <cocotte/datatypes.h>
+#include <cocotte/models/modeldistance.h>
 #include <cocotte/models/leaf.h>
 #include <cocotte/models/node.h>
 
@@ -74,9 +75,7 @@ IteratorType pointsEnd(std::shared_ptr<ModelType> pModel);
 
 template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, unsigned int outputID);
-
-inline double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, unsigned int outputID);
+ModelDistance getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, unsigned int outputID);
 
 
 

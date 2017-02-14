@@ -660,10 +660,10 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
     set<shared_ptr<Model>> candidateModels;                                     // candidate models for the merging
     unordered_set<shared_ptr<Model>> unavailable;                               // models which have already been merged, or that have been rolled back
 
-    deque<pair<double,shared_ptr<Model>>> independentMergesInnerDistances;      // nodes in independently merged models
+    deque<pair<Models::ModelDistance,shared_ptr<Model>>> independentMergesInnerDistances;      // nodes in independently merged models
     // and the distances between their children
-    priority_queue<pair<double, ModelPair>,
-            vector<pair<double, ModelPair>>,
+    priority_queue<pair<Models::ModelDistance, ModelPair>,
+            vector<pair<Models::ModelDistance, ModelPair>>,
             HasGreaterDistance<ModelPair>> candidateDistances;                  // candidate pairs of models, and the distances between them
 
 
@@ -702,7 +702,7 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
                             auto const& child1 = asNode->getModel1();
 
                             mayBeUnmerged = true;
-                            double const innerDistance = Models::getDistance(child0, child1, outputID);
+                            auto const innerDistance = Models::getDistance(child0, child1, outputID);
                             independentMergesInnerDistances.push_back(make_pair(innerDistance, model));
 
                             independentlyMergedModels.push_back(child0);
@@ -722,7 +722,8 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
             }
 
             // We sort queue by increasing distances
-            sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Models::Model>>);
+            sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(),
+                 pairCompareFirst<Models::ModelDistance, shared_ptr<Models::Model>>);
         }
 
 
@@ -765,17 +766,15 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
 
 
     // Now that everything is initialized, we go on to do the merges
-    double minDistCandidates = candidateDistances.top().first;
+    auto minDistCandidates = candidateDistances.top().first;
 
-    double minDistIndependent = 0.;     // smallest distance between two models
-    double maxDistIndependent = 0.;     // biggest distance between two models
-    double supDistIndependent = 0.;     // even bigger distance (used to put entries at the end when sorting)
+    Models::ModelDistance minDistIndependent;   // smallest distance between two models
+    Models::ModelDistance supDistIndependent;   // big distance used to put entries at the end when sorting
 
     if (!independentMergesInnerDistances.empty())
     {
         minDistIndependent = independentMergesInnerDistances.front().first;
-        maxDistIndependent = independentMergesInnerDistances.back().first;
-        supDistIndependent = maxDistIndependent*2 + 0.01;
+        supDistIndependent = Models::ModelDistance::getBiggerDistanceThan(independentMergesInnerDistances.back().first);
     }
 
     while (!independentMergesInnerDistances.empty() || !candidateDistances.empty())
@@ -794,7 +793,7 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
 
             bool doneSomething = false;
 
-            while (candidateDistances.empty() || (minDistIndependent <= minDistCandidates))
+            while (candidateDistances.empty() || !(minDistCandidates < minDistIndependent))
             {
                 auto& entryDistance = iIt->first;
                 auto const& mergedModel = iIt->second;
@@ -850,7 +849,8 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
 
             if (doneSomething)
             {
-                sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(), pairCompareFirst<shared_ptr<Model>>);
+                sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(),
+                     pairCompareFirst<Models::ModelDistance, shared_ptr<Model>>);
 
                 if (nbPointsToTruncate > 0)
                 {
@@ -860,8 +860,7 @@ std::list<std::shared_ptr<Models::Model>> ModelList<ApproximatorType>::mergeAsMu
                 if (!independentMergesInnerDistances.empty())
                 {
                     minDistIndependent = independentMergesInnerDistances.front().first;
-                    maxDistIndependent = independentMergesInnerDistances.back().first;
-                    supDistIndependent = maxDistIndependent*2 + 0.01;
+                    supDistIndependent = Models::ModelDistance::getBiggerDistanceThan(independentMergesInnerDistances.back().first);
                 }
             }
         }

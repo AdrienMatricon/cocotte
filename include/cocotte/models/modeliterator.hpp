@@ -3,6 +3,7 @@
 #include <list>
 #include <utility>
 #include <memory>
+#include <cocotte/distance.h>
 #include <cocotte/models/leaf.h>
 #include <cocotte/models/node.h>
 #include <cocotte/models/modeliterator.h>
@@ -198,17 +199,17 @@ IteratorType pointsEnd(std::shared_ptr<ModelType> pModel)
 
 template<typename ModelType,
          typename = typename std::enable_if<std::is_same<Model, typename std::decay<ModelType>::type>::value>::type>
-double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, unsigned int outputID)
+ModelDistance getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType> pModel1, unsigned int outputID)
 {
     auto const mBegin0 = pointsBegin(pModel0), mEnd0 = pointsEnd(pModel0);
     auto const mBegin1 = pointsBegin(pModel1), mEnd1 = pointsEnd(pModel1);
 
     auto mIt0 = mBegin0, mIt1 = mBegin1;
-    double dist = distanceBetweenDataPoints(*mIt0, *mIt1, outputID);
+    ModelDistance dist = ModelDistance(*mIt0, *mIt1, outputID);
 
     for (++mIt1; mIt1 != mEnd1; ++mIt1)
     {
-        auto const temp = distanceBetweenDataPoints(*mIt0, *mIt1, outputID);
+        auto const temp = ModelDistance(*mIt0, *mIt1, outputID);
         if (temp < dist)
         {
             dist = temp;
@@ -219,34 +220,12 @@ double getDistance(std::shared_ptr<ModelType> pModel0, std::shared_ptr<ModelType
     {
         for (mIt1 = mBegin1; mIt1 != mEnd1; ++mIt1)
         {
-            auto const temp = distanceBetweenDataPoints(*mIt0, *mIt1, outputID);
+            auto const temp = ModelDistance(*mIt0, *mIt1, outputID);
             if (temp < dist)
             {
                 dist = temp;
             }
         }
-    }
-
-    return dist;
-}
-
-
-double distanceBetweenDataPoints(DataPoint const& point0, DataPoint const& point1, unsigned int outputID)
-{
-    using std::abs;
-
-    double dist = 0.;
-
-    for (auto it0 = point0.x.begin(), end0 = point0.x.end(), it1 = point1.x.begin();
-         it0 != end0; ++it0, ++it1)
-    {
-        dist += abs(it0->value - it1->value);
-    }
-
-    for (auto it0 = point0.t[outputID].begin(), end0 = point0.t[outputID].end(), it1 = point1.t[outputID].begin();
-         it0 != end0; ++it0, ++it1)
-    {
-        dist += abs(it0->value - it1->value);
     }
 
     return dist;

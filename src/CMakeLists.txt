@@ -8,8 +8,16 @@ add_executable(${PROJECT_NAME} "./cocotte.cpp")
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${COCOTTE_RUNNER_NAME})
 target_link_libraries(${PROJECT_NAME} datasources cocotte)
 
+
+
+
 set (FORWARD_COMPARATOR_NAME "forward_comparator")
+
+find_package(Boost COMPONENTS serialization system filesystem REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+
+set(dmpbbo_LIBRARIES functionapproximators lwpr)
 
 
 add_executable(${FORWARD_COMPARATOR_NAME} "./forward_comparator.cpp")
-target_link_libraries(${FORWARD_COMPARATOR_NAME} datasources cocotte)
+target_link_libraries(${FORWARD_COMPARATOR_NAME} datasources cocotte ${dmpbbo_LIBRARIES} ${Boost_LIBRARIES})

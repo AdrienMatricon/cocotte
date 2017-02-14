@@ -43,9 +43,9 @@ unsigned int Node::getNbPoints() const
 }
 
 
-double Node::getBiggestInnerDistance(unsigned int outputID)
+ModelDistance Node::getBiggestInnerDistance(unsigned int outputID)
 {
-    if (biggestInnerDistance < 0.)
+    if (!alreadyComputed)
     {
         // We compute the biggest inner distance for all nodes below this one
         vector<shared_ptr<Model>> children = {model0, model1};
@@ -57,7 +57,7 @@ double Node::getBiggestInnerDistance(unsigned int outputID)
             }
 
             auto asNode = static_pointer_cast<Node>(child);
-            if (asNode->biggestInnerDistance > 0.)
+            if (asNode->alreadyComputed)
             {
                 continue;
             }
@@ -75,7 +75,7 @@ double Node::getBiggestInnerDistance(unsigned int outputID)
                 if (!current->isLeaf())
                 {
                     asNode = static_pointer_cast<Node>(current);
-                    if (asNode->biggestInnerDistance < 0.)
+                    if (!asNode->alreadyComputed)
                     {
                         predecessors.push_back(asNode);
                         current = asNode->model0;
@@ -95,14 +95,14 @@ double Node::getBiggestInnerDistance(unsigned int outputID)
                     auto child0 = asNode->model0;
                     auto dist = Models::getDistance(child0, child1, outputID);
 
-                    if (!child0->isLeaf())
+                    if (!child0->isLeaf() && (dist < static_pointer_cast<Node>(child0)->biggestInnerDistance))
                     {
-                        dist = max(dist, static_pointer_cast<Node>(child0)->biggestInnerDistance);
+                        dist = static_pointer_cast<Node>(child0)->biggestInnerDistance;
                     }
 
-                    if (!child1->isLeaf())
+                    if (!child1->isLeaf() && (dist < static_pointer_cast<Node>(child1)->biggestInnerDistance))
                     {
-                        dist = max(dist, static_pointer_cast<Node>(child1)->biggestInnerDistance);
+                        dist = static_pointer_cast<Node>(child1)->biggestInnerDistance;
                     }
 
                     asNode->biggestInnerDistance = dist;
@@ -118,15 +118,17 @@ double Node::getBiggestInnerDistance(unsigned int outputID)
         // And now we compute it for this node
         biggestInnerDistance = Models::getDistance(model0, model1, outputID);
 
-        if (model0->isLeaf())
+        if (model0->isLeaf() && (biggestInnerDistance < static_pointer_cast<Node>(model0)->biggestInnerDistance))
         {
-            biggestInnerDistance = max(biggestInnerDistance, static_pointer_cast<Node>(model0)->biggestInnerDistance);
+            biggestInnerDistance = static_pointer_cast<Node>(model0)->biggestInnerDistance;
         }
 
-        if (model1->isLeaf())
+        if (model1->isLeaf() && (biggestInnerDistance < static_pointer_cast<Node>(model1)->biggestInnerDistance))
         {
-            biggestInnerDistance = max(biggestInnerDistance, static_pointer_cast<Node>(model1)->biggestInnerDistance);
+            biggestInnerDistance = static_pointer_cast<Node>(model1)->biggestInnerDistance;
         }
+
+        alreadyComputed = true;
     }
 
     return biggestInnerDistance;

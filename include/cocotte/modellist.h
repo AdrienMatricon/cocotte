@@ -84,9 +84,9 @@ public:
 private:
 
     // Comparison function to sort models by distance
-    template <typename T>
-    static bool pairCompareFirst(std::pair<double, T> const& lhs,
-                                 std::pair<double, T> const& rhs)
+    template <typename T, typename U>
+    static bool pairCompareFirst(std::pair<T, U> const& lhs,
+                                 std::pair<T, U> const& rhs)
     {
         return std::get<0>(lhs) < std::get<0>(rhs);
     }
@@ -94,7 +94,8 @@ private:
     template <typename T>
     struct HasGreaterDistance
     {
-        bool operator()(std::pair<double, T> const& lhs, std::pair<double, T> const& rhs)
+        bool operator()(std::pair<Models::ModelDistance, T> const& lhs,
+                        std::pair<Models::ModelDistance, T> const& rhs)
         {
             return !pairCompareFirst(lhs,rhs);
         }

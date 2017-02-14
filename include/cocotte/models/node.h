@@ -9,6 +9,7 @@
 #include <boost/serialization/vector.hpp>
 #include <cocotte/datatypes.h>
 #include <cocotte/approximators/form.h>
+#include <cocotte/models/modeldistance.h>
 #include <cocotte/models/model.h>
 
 
@@ -25,7 +26,8 @@ private:
 
     std::vector<Approximators::Form> forms;
     unsigned int nbPoints;
-    double biggestInnerDistance = -1.;
+    ModelDistance biggestInnerDistance;
+    bool alreadyComputed = false;
     std::shared_ptr<Model> model0;
     std::shared_ptr<Model> model1;
     bool temporary;
@@ -38,7 +40,7 @@ public:
     virtual bool isLeaf() const override;
     virtual bool isTemporary() const override;
     virtual unsigned int getNbPoints() const override;
-    double getBiggestInnerDistance(unsigned int outputID);   // Biggest distance between two merged submodels
+    ModelDistance getBiggestInnerDistance(unsigned int outputID);  // Biggest distance between two merged submodels
     virtual std::vector<Approximators::Form> const& getForms() override;
     void setForms(std::vector<Approximators::Form> const& forms);
 
