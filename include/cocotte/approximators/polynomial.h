@@ -19,28 +19,31 @@ class Polynomial : public Approximator<Polynomial>
 private:
 
     // Computes the minimum complexity such that for each number of dimensions
-    //   d which allows for forms with a complexity <= maxComplexity
+    //   d in [1, maxNbDimensions] which allows for forms with a complexity <= maxComplexity
     //   there is at least one with a complexity within [minComplexity, maxComplexity]
     static unsigned int getComplexityRangeLowerBound_implementation(
             unsigned int maxNbDimensions,
             unsigned int maxComplexity);
 
-    // Returns all forms of complexity in [minComplexity, maxComplexity]
-    // The first part of the result are forms that use no new dimensions
-    // The second part of the result are forms that use exactly one new dimension
-    // Each are a list of list of forms:
-    //   - forms in the same list have the same complexity
-    //   - the list of lists is sorted by (non strictly) increasing complexity
-    static std::pair<std::list<std::list<Form>>, std::list<std::list<Form>>> getFormsInComplexityRange_implementation(
+    // Returns all forms of complexity in [minComplexity, maxComplexity],
+    // using exactly nbNewDimensions dimensions not in formerlyUsedDimensions
+    // Those forms are returned as a lists of sublists of forms, such that:
+    //   - forms in the same sublist have the same complexity
+    //   - sublists are sorted by (non strictly) increasing complexity
+    static std::list<std::list<Form>> getFormsInComplexityRange_implementation(
             UsedDimensions const& formerlyUsedDimensions,
+            unsigned int nbNewDimensions,
             unsigned int minComplexity,
             unsigned int maxComplexity);
 
     // Tries to fit the points with a form
-    // If success, params are stored within the form
-    static bool tryFit_implementation(Form& form, unsigned int nbPoints,
-                                      Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
-                                      unsigned int outputID, unsigned int dimInOutput);
+    // If it succeeds, params are stored within the form
+    // The function returns whether is was a success
+    //   and (only if it succeeded) the fitness of the form that was found
+    //   (the lower the better)
+    static std::tuple<bool,double> tryFit_implementation(Form& form, unsigned int nbPoints,
+                                                         Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
+                                                         unsigned int outputID, unsigned int dimInOutput);
 
     static Form fitOnePoint_implementation(double t, unsigned int nbDims);
 
@@ -68,11 +71,15 @@ private:
 
     // Trying to fit the polynomial to the points with GLPK
     // - the first bool is set to true if a problem occured
-    // - the second one is the actual return value
-    static std::pair<bool,bool> tryFitGLPK(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput);
+    // - the other values in the tuple are the actual return values
+    static std::tuple<bool,bool,double> tryFitGLPK(Form& form, unsigned int nbPoints,
+                                                   Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
+                                                   unsigned int outputID, unsigned int dimInOutput);
 
     // Same thing with soplex
-    static std::pair<bool,bool> tryFitSoplex(Form& form, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput);
+    static std::tuple<bool,bool,double> tryFitSoplex(Form& form,
+                                                     Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
+                                                     unsigned int outputID, unsigned int dimInOutput);
 
 };
 

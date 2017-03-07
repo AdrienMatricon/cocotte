@@ -31,22 +31,18 @@ public:
     std::list<unsigned int> const& getIds() const;
     unsigned int getTotalNbDimensions() const;
     unsigned int getNbUsed() const;
-    std::list<unsigned int> unusedDimensionsIds() const;
-    void addDimension(unsigned int id);
-
-    // Accessor and setter
-    int getLatestAddedDimension();
-    void resetLatestAddedDimension();
+    unsigned int getNbUnused() const;
 
     // Returns a UsedDimensions using every dimensions
     static UsedDimensions allDimensions(unsigned int totalNbDimensions);
 
+    // Returns a UsedDimensions using only the unused dimensions
+    UsedDimensions complement() const;
+
     // Returns a list of combinations of d used dimensions
-    std::list<UsedDimensions> getCombinationsFromUsed(unsigned int d) const;
-    // Same but with combinations of d-1 used dimensions and an unused one
-    std::list<UsedDimensions> getCombinationsFromUsedAndExactlyOne(unsigned int d) const;
-    // Returns both of the above
-    std::list<UsedDimensions> getCombinationsFromUsedAndOne(unsigned int d) const;
+    std::list<UsedDimensions> getCombinations(unsigned int d) const;
+    // Same but with combinations of d-k used dimensions and k unused one
+    std::list<UsedDimensions> getCombinationsWithKUnused(unsigned int d, unsigned int k) const;
 
     // Operators
     UsedDimensions const& operator+=(UsedDimensions otherDimensions);

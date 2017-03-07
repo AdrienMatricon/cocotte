@@ -42,9 +42,28 @@ unsigned int UsedDimensions::getNbUsed() const
 }
 
 
-list<unsigned int> UsedDimensions::unusedDimensionsIds() const
+unsigned int UsedDimensions::getNbUnused() const
 {
-    list<unsigned int> result;
+    return totalNbDimensions - nbUsed;
+}
+
+
+// Returns a UsedDimensions using every dimensions
+UsedDimensions UsedDimensions::allDimensions(unsigned int totalNbDimensions)
+{
+    list<unsigned int> IDs;
+    for (unsigned int i = 0u; i < totalNbDimensions; ++i)
+    {
+        IDs.push_back(i);
+    }
+    return UsedDimensions(totalNbDimensions, IDs);
+}
+
+
+// Returns a UsedDimensions using only the unused dimensions
+UsedDimensions UsedDimensions::complement() const
+{
+    list<unsigned int> IDs;
 
     auto dIter = dimensionsIDs.begin();
     auto const dEnd = dimensionsIDs.end();
@@ -63,7 +82,7 @@ list<unsigned int> UsedDimensions::unusedDimensionsIds() const
             }
             else
             {
-                result.push_back(i);
+                IDs.push_back(i);
             }
 
             ++i;
@@ -74,61 +93,15 @@ list<unsigned int> UsedDimensions::unusedDimensionsIds() const
     // We add all remaining dimensions
     for (; i < totalNbDimensions; ++i)
     {
-        result.push_back(i);
+        IDs.push_back(i);
     }
 
-    return result;
-}
-
-
-void UsedDimensions::addDimension(unsigned int id)
-{
-    auto dIter = dimensionsIDs.begin();
-    auto dEnd = dimensionsIDs.end();
-
-    // We go through the list until we reach its end or find a value above id
-    while ((dIter != dEnd) && (*dIter < id))
-    {
-        ++dIter;
-    }
-
-    // If id is not already in the list, we add it
-    if ((dIter == dEnd) || (*dIter > id))
-    {
-        dimensionsIDs.insert(dIter, id);
-        ++nbUsed;
-        latestAddedDimension = id;
-    }
-}
-
-
-// Accessor and setter
-int UsedDimensions::getLatestAddedDimension()
-{
-    return latestAddedDimension;
-}
-
-
-void UsedDimensions::resetLatestAddedDimension()
-{
-    latestAddedDimension = -1;
-}
-
-
-// Returns a UsedDimensions using every dimensions
-UsedDimensions UsedDimensions::allDimensions(unsigned int totalNbDimensions)
-{
-    list<unsigned int> ids;
-    for (unsigned int i = 0u; i < totalNbDimensions; ++i)
-    {
-        ids.push_back(i);
-    }
-    return UsedDimensions(totalNbDimensions, ids);
+    return UsedDimensions(totalNbDimensions, IDs);
 }
 
 
 // Returns a list of combinations of d used dimensions
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) const
+list<UsedDimensions> UsedDimensions::getCombinations(unsigned int d) const
 {
     if (d > nbUsed)
     {
@@ -183,42 +156,37 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) con
 }
 
 
-// Same but with combinations of d-1 used dimensions and an unused one
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndExactlyOne(unsigned int d) const
+// Same but with combinations of d-k used dimensions and k unused one
+list<UsedDimensions> UsedDimensions::getCombinationsWithKUnused(unsigned int d, unsigned int k) const
 {
-    if ( (d > nbUsed + 1) || (d > totalNbDimensions) )
+    if (k < 1)
+    {
+        return getCombinations(d);
+    }
+
+    if (k == d)
+    {
+        return complement().getCombinations(k);
+    }
+
+    if ( (d > nbUsed + k) || (d > totalNbDimensions) )
     {
         // No combination works
         return list<UsedDimensions>{};
     }
 
-    auto const partialResult = getCombinationsFromUsed(d-1);
-    auto const complement = unusedDimensionsIds();
+    auto const partialResult = getCombinations(d-k);
+    auto const newDimensionsCombinations = complement().getCombinations(k);
 
     list<UsedDimensions> result;
-    for (auto& dim : complement)
+
+    for (auto const& usedDims : partialResult)
+        for (auto& newDims : newDimensionsCombinations)
     {
-        auto partialResultCopy = partialResult;
-        for (auto& comb : partialResultCopy)
-        {
-            comb.addDimension(dim);
-        }
-        result.insert(result.end(), partialResultCopy.begin(), partialResultCopy.end());
+        result.push_back(usedDims + newDims);
     }
 
     return result;
-}
-
-
-// Returns both of the above
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int d) const
-{
-    auto combinations = getCombinationsFromUsed(d);
-    auto otherCombinations = getCombinationsFromUsedAndExactlyOne(d);
-
-    combinations.insert(combinations.end(), otherCombinations.begin(), otherCombinations.end());
-
-    return combinations;
 }
 
 
@@ -226,8 +194,6 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int 
 // Operators
 UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
 {
-    resetLatestAddedDimension();
-
     auto dIter0 = dimensionsIDs.begin(),
             dIter1 = otherDimensions.dimensionsIDs.begin();
     auto const dEnd1 = otherDimensions.dimensionsIDs.end();

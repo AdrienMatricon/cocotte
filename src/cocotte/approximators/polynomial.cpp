@@ -17,8 +17,9 @@ using std::abs;
 #include <algorithm>
 using std::min;
 using std::max;
-#include <utility>
-using std::pair;
+#include <tuple>
+using std::tuple;
+using std::make_tuple;
 #include <glpk.h>
 #include <soplex/src/soplex.h>
 #include <cocotte/datatypes.h>
@@ -32,7 +33,7 @@ namespace Approximators {
 
 
 // Computes the minimum complexity such that for each number of dimensions
-//   d which allows for forms with a complexity <= maxComplexity
+//   d in [1, maxNbDimensions] which allows for forms with a complexity <= maxComplexity
 //   there is at least one with a complexity within [minComplexity, maxComplexity]
 unsigned int Polynomial::getComplexityRangeLowerBound_implementation(
         unsigned int maxNbDimensions,
@@ -45,7 +46,7 @@ unsigned int Polynomial::getComplexityRangeLowerBound_implementation(
 
     unsigned int minComplexity = maxComplexity;
 
-    for (unsigned int d = 0; d < maxNbDimensions; ++d)
+    for (unsigned int d = 1; d < maxNbDimensions; ++d)
     {
         unsigned int N = 1;     // degree
         unsigned int c = complexity(N, d);
@@ -80,111 +81,103 @@ unsigned int Polynomial::getComplexityRangeLowerBound_implementation(
 }
 
 
-// Returns all forms of complexity in [minComplexity, maxComplexity]
-// The first part of the result are forms that use no new dimensions
-// The second part of the result are forms that use exactly one new dimension
-// Each are a list of list of forms:
-//   - forms in the same list have the same complexity
-//   - the list of lists is sorted by (non strictly) increasing complexity
-pair<list<list<Form>>, list<list<Form>>> Polynomial::getFormsInComplexityRange_implementation(
+// Returns all forms of complexity in [minComplexity, maxComplexity],
+// using exactly nbNewDimensions dimensions not in formerlyUsedDimensions
+// Those forms are returned as a lists of sublists of forms, such that:
+//   - forms in the same sublist have the same complexity
+//   - sublists are sorted by (non strictly) increasing complexity
+list<list<Form>> Polynomial::getFormsInComplexityRange_implementation(
         UsedDimensions const& formerlyUsedDimensions,
+        unsigned int nbNewDimensions,
         unsigned int minComplexity,
         unsigned int maxComplexity)
 {
+    // Trivial case
     if (minComplexity > maxComplexity)
     {
-        return {list<list<Form>>{}, list<list<Form>>{}};
+        return {};
     }
 
-    list<list<Form>> resultOldDimensions, resultWithNewDimension;
+    unsigned int const nbAvailableDimensions = formerlyUsedDimensions.getNbUsed() + nbNewDimensions;
 
-    if (minComplexity <= 1u)
+    if (formerlyUsedDimensions.getTotalNbDimensions() < nbAvailableDimensions)
+    {
+        return {};
+    }
+
+    unsigned int const maxNbDims = min(maxComplexity - 1u,  // c = N*d+1, thus d <= c-1 for N > 0
+                                       nbAvailableDimensions);
+
+
+    // Now onto the normal case
+    list<list<Form>> result{};
+
+    // First the form which uses 0 dimensions
+    if ((minComplexity <= 1u) && (nbNewDimensions == 0u))
     {
         // N = 0 or d = 0, which is equivalent
         Form form(UsedDimensions(formerlyUsedDimensions.getTotalNbDimensions()));   // d = 0
         form.other = 0u; // N = 0
         form.complexity = 1u;
 
-        resultOldDimensions.push_back(list<Form>{form});
+        result.push_back(list<Form>{form});
     }
 
-    // Maximum number of dimensions which can be considered
-    unsigned int const maxNbDims = min(maxComplexity - 1u,  // c = N*d+1, thus d <= c-1
-                                       min(formerlyUsedDimensions.getTotalNbDimensions(),
-                                       formerlyUsedDimensions.getNbUsed() + 1));
-
-    // We get the forms
-    for (unsigned int d = 1; d <= maxNbDims; ++d)
+    // Then the other forms
+    for (unsigned int d = max(1u, nbNewDimensions); d <= maxNbDims; ++d)
     {
+        // We start from the minimum N such that the complexity
+        // is in [minComplexity, maxComplexity]
         unsigned int N = 1, c = complexity(N, d);
-
         while (c < minComplexity)
         {
             ++N;
             c = complexity(N, d);
         }
 
-        // minComplexity <= c <= maxComplexity
+        // Then we iterate over N as long as the complexity
+        // stays in [minComplexity, maxComplexity]
         for (;c <= maxComplexity; c = complexity(++N, d))
         {
-            // We compute all corresponding forms and store them in a list
-            for (unsigned int loopID = 0; loopID < 2; ++loopID)
+            // We compute all combinations of nbNewDimensions newly used dimensions
+            // and (d - nbNewDimensions) formerly used ones
+            list<UsedDimensions> const dimensionCombinations
+                    = formerlyUsedDimensions.getCombinationsWithKUnused(d, nbNewDimensions);
+
+            // We compute all corresponding forms and create a sublist to store them
+            list<Form> newForms;
+            for (auto& comb : dimensionCombinations)
             {
-                list<UsedDimensions> dimCombinations;
-                list<list<Form>> *resultTerm;
-
-                if (loopID == 0)    // old dimensions
-                {
-                    dimCombinations = formerlyUsedDimensions.getCombinationsFromUsed(d);
-                    resultTerm = &resultOldDimensions;
-                }
-                else                // one new dimension
-                {
-                    dimCombinations = formerlyUsedDimensions.getCombinationsFromUsedAndExactlyOne(d);
-                    resultTerm = &resultWithNewDimension;
-                }
-
-                list<Form> current;
-                for (auto& comb : dimCombinations)
-                {
-                    Form form(std::move(comb));
-                    form.complexity = c;
-                    form.other = N;
-                    current.push_back(std::move(form));
-                }
-
-                // We insert the new list of forms while keeping sure that
-                // the list of lists is sorted by increasing complexity
-                auto rIt = resultTerm->begin();
-                auto const rEnd = resultTerm->end();
-                bool hasBeenInserted = false;
-
-                for (; rIt != rEnd; ++rIt)
-                {
-                    if (rIt->back().complexity > c)
-                    {
-                        hasBeenInserted = true;
-                        resultTerm->insert(rIt, std::move(current));
-                        break;
-                    }
-                }
-
-                if (!hasBeenInserted)
-                {
-                    resultTerm->insert(rIt, std::move(current));
-                }
+                Form form(std::move(comb));
+                form.complexity = c;
+                form.other = N;
+                newForms.push_back(std::move(form));
             }
 
+            // We insert the new sublist in the list,
+            // in such a way that it stays sorted by increasing complexity
+            auto rIt = result.begin();
+            auto const rEnd = result.end();
+
+            while ((rIt != rEnd) && (c > rIt->back().complexity))
+            {
+                ++rIt;
+            }
+
+            result.insert(rIt, std::move(newForms));
         }
     }
 
-    return {resultOldDimensions, resultWithNewDimension};
+    return result;
 }
 
 
 // Tries to fit the points with a form
-// If success, params are stored within the form
-bool Polynomial::tryFit_implementation(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput)
+// If it succeeds, params are stored within the form
+// The function returns whether is was a success
+//   and (only if it succeeded) the fitness of the form that was found
+//   (the lower the better)
+tuple<bool,double> Polynomial::tryFit_implementation(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput)
 {
     // We compute normalization coefficients and store them in form.params
     // We also compute the amplitude of the output and store it in form.params
@@ -233,24 +226,24 @@ bool Polynomial::tryFit_implementation(Form& form, unsigned int nbPoints, Models
     }
 
     // We try to fit the form to the data
-    pair<bool,bool> const soplexResult = tryFitSoplex(form, mBegin, mEnd, outputID, dimInOutput);
+    auto const soplexResult = tryFitSoplex(form, mBegin, mEnd, outputID, dimInOutput);
 
-    if (soplexResult.first)
+    if (std::get<0>(soplexResult))
     {
-        pair<bool,bool> const glpkResult = tryFitGLPK(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
+        auto const glpkResult = tryFitGLPK(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
 
-        if (glpkResult.first)
+        if (std::get<0>(glpkResult))
         {
             cerr << "Neither soplex nor GLPK can solve this" << endl;
             exit(1);
         }
         else
         {
-            return glpkResult.second;
+            return make_tuple(std::get<1>(glpkResult), std::get<2>(glpkResult));
         }
     }
 
-    return soplexResult.second;
+    return make_tuple(std::get<1>(soplexResult), std::get<2>(soplexResult));
 }
 
 
@@ -343,19 +336,19 @@ string Polynomial::formToString_implementation(Form const& form, vector<string> 
     // Then we generate the string
     string result = "c = " + to_string(form.complexity);
     result += ": N = " + to_string(degree);
-    result += ", d = {";
+    result += ", d = " + to_string(nbDims);
 
     if (nbDims > 0)
     {
-        result += dimNames[0];
+        result +=  " (" + dimNames[0];
 
         for (unsigned int i = 1; i < nbDims; ++i)
         {
             result += "," + dimNames[i];
         }
-    }
 
-    result += "}";
+        result += ")";
+    }
 
     return result;
 }
@@ -496,8 +489,8 @@ unsigned int Polynomial::complexity(unsigned int degree, unsigned int nbUsedDime
 
 // Trying to fit the polynomial to the points with GLPK
 // - the first bool is set to true if a problem occured
-// - the second one is the actual return value
-pair<bool,bool> Polynomial::tryFitGLPK(Form& form,
+// - the other values in the tuple are the actual return values
+tuple<bool,bool,double> Polynomial::tryFitGLPK(Form& form,
                                        unsigned int nbPoints,
                                        Models::ModelConstIterator mBegin,
                                        Models::ModelConstIterator mEnd,
@@ -629,13 +622,13 @@ pair<bool,bool> Polynomial::tryFitGLPK(Form& form,
     if (glp_simplex(lp, &glpParams) != 0)
     {
         glp_delete_prob(lp);
-        return pair<bool,bool>(true, false);    // (a problem occured, no solution found)
+        return make_tuple(true, false, 0.);                     // (a problem occured, no solution found)
     }
 
     if (glp_get_col_prim(lp, 1) > 1.0)
     {
         glp_delete_prob(lp);
-        return pair<bool,bool>(false, false);   // (no problem occured, no solution found which satisfies all constraints)
+        return make_tuple(false, false, 0.);                    // (no problem occured, no solution found which satisfies all constraints)
     }
 
     for (unsigned int i = 2; i < supI; ++i)
@@ -645,13 +638,15 @@ pair<bool,bool> Polynomial::tryFitGLPK(Form& form,
 
     glp_delete_prob(lp);
 
-    return pair<bool,bool>(false, true);        // (no problem occured, solution(s) found)
+    return make_tuple(false, true, glp_get_col_prim(lp, 1));    // (no problem occured, solution(s) found)
 }
 
 
 
 // Same thing with soplex
-pair<bool,bool> Polynomial::tryFitSoplex(Form& form, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput)
+tuple<bool,bool,double> Polynomial::tryFitSoplex(Form& form,
+                                                 Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
+                                                 unsigned int outputID, unsigned int dimInOutput)
 {
     auto const usedInputDimIds = form.usedDimensions.getIds();
     unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
@@ -718,7 +713,7 @@ pair<bool,bool> Polynomial::tryFitSoplex(Form& form, Models::ModelConstIterator 
 
             for (unsigned int i = 0; i < nbTerms; ++i)
             {
-               row.add(i+1, terms[i]);
+                row.add(i+1, terms[i]);
             }
 
             problem.addRowReal(soplex::LPRow(normalizedOutputVal, row, soplex::infinity));
@@ -743,7 +738,7 @@ pair<bool,bool> Polynomial::tryFitSoplex(Form& form, Models::ModelConstIterator 
     // Now we solve the optimization problem and deduce if the form fit the data
     if (problem.solve() != soplex::SPxSolver::OPTIMAL)
     {
-        return pair<bool,bool>(true, false);    // (a problem occured, no solution found)
+        return make_tuple(true, false, 0.);     // (a problem occured, no solution found)
     }
 
     soplex::DVector primal(nbVars);
@@ -751,7 +746,7 @@ pair<bool,bool> Polynomial::tryFitSoplex(Form& form, Models::ModelConstIterator 
 
     if (primal[0] > 1.0)
     {
-        return pair<bool,bool>(false, false);   // (no problem occured, no solution found which satisfies all constraints)
+        return make_tuple(false, false, 0.);    // (no problem occured, no solution found which satisfies all constraints)
     }
 
     for (unsigned int i = 1; i < nbVars; ++i)
@@ -759,7 +754,7 @@ pair<bool,bool> Polynomial::tryFitSoplex(Form& form, Models::ModelConstIterator 
         form.params.push_back(primal[i]);
     }
 
-    return pair<bool,bool>(false, true);   // (no problem occured, solution(s) found)
+    return make_tuple(false, true, primal[0]);  // (no problem occured, solution(s) found)
 }
 
 

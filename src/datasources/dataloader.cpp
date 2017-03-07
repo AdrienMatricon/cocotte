@@ -12,6 +12,8 @@ using std::vector;
 #include <unordered_map>
 using std::unordered_map;
 using std::pair;
+#include <list>
+using std::list;
 #include <set>
 using std::set;
 #include <string>
@@ -44,6 +46,7 @@ DataLoader::DataLoader(string dataFileName,
     bool const loadingTestData = !outputNames.empty();
 
     set<string> usedVars;
+    list<string> usedVarsInOrder;
 
     unordered_map<string, double> varNameToFixedPrecision;
     unordered_map<string, string> varNameToPrecisionName;
@@ -88,6 +91,7 @@ DataLoader::DataLoader(string dataFileName,
             }
 
             usedVars.insert(cut[0]);
+            usedVarsInOrder.push_back(cut[0]);
 
             if (cut.size() == 2)
             {
@@ -154,6 +158,7 @@ DataLoader::DataLoader(string dataFileName,
                 {
                     string const name = cut[i];
                     usedVars.insert(name);
+                    usedVarsInOrder.push_back(name);
                     outputIDs.emplace(name, pair<unsigned int, unsigned int>(id, i));
                 }
 
@@ -166,7 +171,7 @@ DataLoader::DataLoader(string dataFileName,
             }
 
             // We list input variables
-            for (auto const& name : usedVars)
+            for (auto const& name : usedVarsInOrder)
             {
                 if (outputIDs.count(name) == 0)
                 {

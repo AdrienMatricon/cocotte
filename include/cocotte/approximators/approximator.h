@@ -5,7 +5,7 @@
 #include <vector>
 #include <list>
 #include <string>
-#include <utility>
+#include <tuple>
 #include <boost/serialization/vector.hpp>
 #include <cocotte/approximators/form.h>
 #include <cocotte/models/modeliterator.h>
@@ -25,7 +25,7 @@ public:
 
 
     // Computes the minimum complexity such that for each number of dimensions
-    //   d which allows for forms with a complexity <= maxComplexity
+    //   d in [1, maxNbDimensions] which allows for forms with a complexity <= maxComplexity
     //   there is at least one with a complexity within [minComplexity, maxComplexity]
     static unsigned int getComplexityRangeLowerBound(
             unsigned int maxNbDimensions,
@@ -34,23 +34,29 @@ public:
         return ApproximatorType::getComplexityRangeLowerBound_implementation(maxNbDimensions, maxComplexity);
     }
 
-    // Returns all forms of complexity in [minComplexity, maxComplexity]
-    // The first part of the result are forms that use no new dimensions
-    // The second part of the result are forms that use exactly one new dimension
-    // Each are a list of list of forms:
-    //   - forms in the same list have the same complexity
-    //   - the list of lists is sorted by (non strictly) increasing complexity
-    static std::pair<std::list<std::list<Form>>, std::list<std::list<Form>>> getFormsInComplexityRange(
+    // Returns all forms of complexity in [minComplexity, maxComplexity],
+    // using exactly nbNewDimensions dimensions not in formerlyUsedDimensions
+    // Those forms are returned as a lists of sublists of forms, such that:
+    //   - forms in the same sublist have the same complexity
+    //   - sublists are sorted by (non strictly) increasing complexity
+    static std::list<std::list<Form>> getFormsInComplexityRange(
             UsedDimensions const& formerlyUsedDimensions,
+            unsigned int nbNewDimensions,
             unsigned int minComplexity,
             unsigned int maxComplexity)
     {
-        return ApproximatorType::getFormsInComplexityRange_implementation(formerlyUsedDimensions, minComplexity, maxComplexity);
+        return ApproximatorType::getFormsInComplexityRange_implementation(
+                    formerlyUsedDimensions, nbNewDimensions, minComplexity, maxComplexity);
     }
 
     // Tries to fit the points with a form
-    // If success, params are stored within the form
-    static bool tryFit(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput)
+    // If it succeeds, params are stored within the form
+    // The function returns whether is was a success
+    //   and (only if it succeeded) the fitness of the form that was found
+    //   (the lower the better)
+    static std::tuple<bool,double> tryFit(Form& form, unsigned int nbPoints,
+                                          Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
+                                          unsigned int outputID, unsigned int dimInOutput)
     {
         return ApproximatorType::tryFit_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
     }

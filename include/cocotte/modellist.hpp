@@ -7,6 +7,7 @@
 #include <set>
 #include <unordered_set>
 #include <utility>
+#include <tuple>
 #include <memory>
 #include <string>
 #include <sstream>
@@ -478,114 +479,118 @@ std::shared_ptr<Models::Model> ModelList<ApproximatorType>::tryMerge(std::shared
     vector<Form> const forms0 = model0->getForms(), forms1 = model1->getForms();
     vector<Form> newForms;
 
-    for (unsigned int dim = 0; dim < nbOutputDims; ++dim)
+    for (unsigned int outputDim = 0; outputDim < nbOutputDims; ++outputDim)
     {
-        Form const form0 = forms0[dim], form1 = forms1[dim];
+        Form const form0 = forms0[outputDim], form1 = forms1[outputDim];
         unsigned int const totalNbDimensions = form0.usedDimensions.getTotalNbDimensions();
 
-//        UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
-        UsedDimensions availableDimensions = UsedDimensions::allDimensions(totalNbDimensions);
+//        UsedDimensions availableDimensions = UsedDimensions::allDimensions(totalNbDimensions);
+        UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
+        unsigned int const nbUnusedDimensions = availableDimensions.getNbUnused();
+        unsigned int const maxAllowedComplexity = form0.complexity + form1.complexity;
+
+        // The lowest complexity form which has been found
+        Form bestNewForm;
+        double bestFitness = 2.;
 
         // We look for a form that would fit the points,
         //   and use a binary search to get the lowest complexity one
         // We don't immediately test the highest complexity
         //   because the computational cost can be prohibitive
-        unsigned int const minPossibleComplexity = max(form0.complexity, form1.complexity);
-        unsigned int const maxPossibleComplexity = form0.complexity + form1.complexity;
-
-        unsigned int lowerBound = minPossibleComplexity;
-        unsigned int upperBound = maxPossibleComplexity;
-
-        // Instead of trying one complexity in [lowerBound, upperBound],
-        //   we will consider a range, so that we consider forms with lower
-        //   complexities which use more dimensions.
-        // That way, if no form in the range fits, we know the complexity was not high enough
-        unsigned int middleComplexityRangeLowerBound,  middleComplexityRangeUpperBound;
-
-        // We store the best form we found
-        Form bestNewForm;
-
-
-        while (upperBound > lowerBound)
+        for (unsigned int nbAdditionalDimensions = 0; nbAdditionalDimensions <= nbUnusedDimensions; ++nbAdditionalDimensions)
         {
-            if (upperBound - lowerBound < 5)
+            unsigned int lowerBound = (nbAdditionalDimensions == 0) ?
+                        max(form0.complexity, form1.complexity) : 1;
+            unsigned int upperBound = maxAllowedComplexity;
+
+            // Instead of trying one complexity in [lowerBound, upperBound], we will consider a range,
+            //   so that we don't miss forms with lower complexities but different dimensions.
+            // That way, if no form in the range fits, we know the complexity was not high enough
+            unsigned int middleComplexityRangeMin,  middleComplexityRangeMax;
+
+            while (upperBound > lowerBound)
             {
-                // We finish in one go
-                middleComplexityRangeUpperBound = upperBound;
-                middleComplexityRangeLowerBound = lowerBound;
-            }
-            else
-            {
-                middleComplexityRangeUpperBound = (lowerBound + upperBound) / 2;
-                middleComplexityRangeLowerBound =
-                        ApproximatorType::getComplexityRangeLowerBound(totalNbDimensions, middleComplexityRangeUpperBound);
-            }
-
-            auto possibleForms = ApproximatorType::getFormsInComplexityRange(availableDimensions,
-                                                                        middleComplexityRangeLowerBound,
-                                                                        middleComplexityRangeUpperBound);
-
-
-            bool success = false;
-
-            // We try to fit the points using no new dimension
-            {
-                for (auto& someForms : possibleForms.first)
+                if (upperBound - lowerBound < 5)
                 {
-                    for (auto& form : someForms)
+                    // We finish in one go
+                    middleComplexityRangeMax = upperBound;
+                    middleComplexityRangeMin = lowerBound;
+                }
+                else
+                {
+                    middleComplexityRangeMax = (lowerBound + upperBound) / 2;
+
+                    if (lowerBound == 1)
                     {
-                        // For each form, we try to fit all points
-                        if (ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
+                        middleComplexityRangeMin = 1;
+                    }
+                    else
+                    {
+                        middleComplexityRangeMin =
+                                ApproximatorType::getComplexityRangeLowerBound(totalNbDimensions, middleComplexityRangeMax);
+                    }
+                }
+
+                // We look for possible forms with complexity in [middleComplexityRangeMin, middleComplexityRangeMax]
+                //   which use exactly nbAdditionalDimensions dimensions not in availableDimensions
+                auto possibleForms = ApproximatorType::getFormsInComplexityRange(availableDimensions,
+                                                                                 nbAdditionalDimensions,
+                                                                                 middleComplexityRangeMin,
+                                                                                 middleComplexityRangeMax);
+
+                bool success = false;
+
+                // We try to fit the points with those forms,
+                //   starting with the lowest complexity forms
+                {
+                    bool stop = false;
+                    for (auto& someForms : possibleForms)
+                    {
+                        for (auto& form : someForms)
                         {
-                            bestNewForm = form;
-                            upperBound = middleComplexityRangeLowerBound - 1u;
-                            success = true;
+                            if (success && form.complexity > bestNewForm.complexity)
+                            {
+                                stop = true;
+                                break;
+                            }
+
+                            // For each form, we try to fit all points
+                            auto const fitResult = ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, outputDim);
+                            if (std::get<0>(fitResult))
+                            {
+                                double const fitness = std::get<1>(fitResult);
+
+                                if (!success || (fitness < bestFitness))
+                                {
+                                    bestNewForm = form;
+                                    bestFitness = fitness;
+
+                                    if (!success)
+                                    {
+                                        success = true;
+                                        upperBound = middleComplexityRangeMin - 1u;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (stop)
+                        {
                             break;
                         }
                     }
+                }
 
-                    if (success)
-                    {
-                        break;
-                    }
+                if (!success)
+                {
+                    lowerBound = middleComplexityRangeMax + 1u;
                 }
             }
 
-            // If they were not enough, we try to fit the points using one new dimension.
-            // In case of success,
-            //   and we reset lowerBound to the minimum possible complexity
-            //   in case those new dimensions help us find simpler solutions
-//            if (!success)
-//            {
-//                for (auto& someForms : possibleForms.second)
-//                {
-//                    for (auto& form : someForms)
-//                    {
-//                        // For each form, we try to fit all points
-//                        if (ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, dim))
-//                        {
-//                            int const latestDim = form.usedDimensions.getLatestAddedDimension();
-//                            availableDimensions.addDimension(latestDim);    // We remember the dimensions that allowed us to fit the
-//                            // points so that we can use them in the next iterations
-//
-//                            lowerBound = minPossibleComplexity;             // We reset lowerBound in case the new dimensions
-//                                                                            // help us find simpler solutions
-//
-//                            if (!success)   // we keep the first form that worked (lowest complexity, lowest number of DoFs)
-//                            {
-//
-//                                bestNewForm = form;
-//                                upperBound = middleComplexityRangeLowerBound - 1u;
-//                                success = true;
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-
-            if (!success)
+            if ((bestNewForm.complexity > 0)                            // at least one success
+                    && (bestNewForm.complexity < maxAllowedComplexity)) // structure was used to reduce complexity
             {
-                lowerBound = middleComplexityRangeUpperBound + 1u;
+                break;
             }
         }
 
