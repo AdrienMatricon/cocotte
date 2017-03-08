@@ -173,7 +173,8 @@ void Learner<ApproximatorType>::removeArtifacts()
                 vector<shared_ptr<DataPoint const>> pointers;
                 pointers.reserve(firstModel->getNbPoints());
 
-                for (auto mIt = Models::pointsBegin(firstModel), mEnd = Models::pointsEnd(firstModel);
+                for (auto mIt = Models::pointsBegin<ApproximatorType>(firstModel),
+                     mEnd = Models::pointsEnd<ApproximatorType>(firstModel);
                      mIt != mEnd; ++mIt)
                 {
                     pointers.push_back(mIt.getSharedPointer());

@@ -8,7 +8,6 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/shared_ptr.hpp>
 #include <cocotte/datatypes.h>
-#include <cocotte/approximators/form.h>
 #include <cocotte/models/model.h>
 
 
@@ -18,12 +17,13 @@ namespace Models {
 
 
 
-class Leaf : public Model
+template<typename ApproximatorType>
+class Leaf : public Model<ApproximatorType>
 {
 
 private:
 
-    std::vector<Approximators::Form> forms;
+    std::vector<Approximators::Form<ApproximatorType>> forms;
     std::shared_ptr<DataPoint const> pointAddress;
     bool temporary;
 
@@ -31,11 +31,12 @@ private:
 public:
 
     Leaf() = default;
-    Leaf(std::vector<Approximators::Form> const& forms, std::shared_ptr<DataPoint const> pointAddress, bool temporary = false);
+    Leaf(std::vector<Approximators::Form<ApproximatorType>> const& forms,
+         std::shared_ptr<DataPoint const> pointAddress, bool temporary = false);
     virtual bool isLeaf() const override;
     virtual bool isTemporary() const override;
     virtual unsigned int getNbPoints() const override;
-    virtual std::vector<Approximators::Form> const& getForms() override;
+    virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() override;
 
     DataPoint const& getPoint();
     DataPoint const& getPoint() const;
@@ -47,7 +48,7 @@ public:
     {
         (void) version; // Unused parameter
 
-        archive & boost::serialization::base_object<Model>(leaf);
+        archive & boost::serialization::base_object<Model<ApproximatorType>>(leaf);
         archive & leaf.forms;
         archive & leaf.pointAddress;
         archive & leaf.temporary;
@@ -58,6 +59,8 @@ public:
 
 
 }}
+
+#include <cocotte/models/leaf.hpp>
 
 
 

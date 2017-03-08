@@ -7,7 +7,7 @@
 #include <string>
 #include <tuple>
 #include <boost/serialization/vector.hpp>
-#include <cocotte/approximators/form.h>
+#include <cocotte/approximators/forward.h>
 #include <cocotte/models/modeliterator.h>
 #include <cocotte/useddimensions.h>
 
@@ -39,7 +39,7 @@ public:
     // Those forms are returned as a lists of sublists of forms, such that:
     //   - forms in the same sublist have the same complexity
     //   - sublists are sorted by (non strictly) increasing complexity
-    static std::list<std::list<Form>> getFormsInComplexityRange(
+    static std::list<std::list<Form<ApproximatorType>>> getFormsInComplexityRange(
             UsedDimensions const& formerlyUsedDimensions,
             unsigned int nbNewDimensions,
             unsigned int minComplexity,
@@ -54,26 +54,27 @@ public:
     // The function returns whether is was a success
     //   and (only if it succeeded) the fitness of the form that was found
     //   (the lower the better)
-    static std::tuple<bool,double> tryFit(Form& form, unsigned int nbPoints,
-                                          Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
+    static std::tuple<bool,double> tryFit(Form<ApproximatorType>& form, unsigned int nbPoints,
+                                          Models::ModelConstIterator<ApproximatorType> mBegin,
+                                          Models::ModelConstIterator<ApproximatorType> mEnd,
                                           unsigned int outputID, unsigned int dimInOutput)
     {
         return ApproximatorType::tryFit_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
     }
 
-    static Form fitOnePoint(double t, unsigned int nbDims)
+    static Form<ApproximatorType> fitOnePoint(double t, unsigned int nbDims)
     {
         return ApproximatorType::fitOnePoint_implementation(t, nbDims);
     }
 
     // Estimates the value for the given inputs
-    static std::vector<double> estimate(Form const& form, std::vector<std::vector<double>> const& x)
+    static std::vector<double> estimate(Form<ApproximatorType> const& form, std::vector<std::vector<double>> const& x)
     {
         return ApproximatorType::estimate_implementation(form, x);
     }
 
     // Returns the form as a readable string
-    static std::string formToString(Form const& form, std::vector<std::string> inputNames)
+    static std::string formToString(Form<ApproximatorType> const& form, std::vector<std::string> inputNames)
     {
         return ApproximatorType::formToString_implementation(form, inputNames);
     }

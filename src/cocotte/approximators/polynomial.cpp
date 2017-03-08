@@ -25,6 +25,7 @@ using std::make_tuple;
 #include <cocotte/datatypes.h>
 using Cocotte::DataPoint;
 #include <cocotte/approximators/polynomial.h>
+using FormType = Cocotte::Approximators::Form<Cocotte::Approximators::Polynomial>;
 
 
 
@@ -86,7 +87,7 @@ unsigned int Polynomial::getComplexityRangeLowerBound_implementation(
 // Those forms are returned as a lists of sublists of forms, such that:
 //   - forms in the same sublist have the same complexity
 //   - sublists are sorted by (non strictly) increasing complexity
-list<list<Form>> Polynomial::getFormsInComplexityRange_implementation(
+list<list<FormType>> Polynomial::getFormsInComplexityRange_implementation(
         UsedDimensions const& formerlyUsedDimensions,
         unsigned int nbNewDimensions,
         unsigned int minComplexity,
@@ -110,17 +111,17 @@ list<list<Form>> Polynomial::getFormsInComplexityRange_implementation(
 
 
     // Now onto the normal case
-    list<list<Form>> result{};
+    list<list<FormType>> result{};
 
     // First the form which uses 0 dimensions
     if ((minComplexity <= 1u) && (nbNewDimensions == 0u))
     {
         // N = 0 or d = 0, which is equivalent
-        Form form(UsedDimensions(formerlyUsedDimensions.getTotalNbDimensions()));   // d = 0
-        form.other = 0u; // N = 0
+        FormType form(UsedDimensions(formerlyUsedDimensions.getTotalNbDimensions()));   // d = 0
+        form.degree = 0u; // N = 0
         form.complexity = 1u;
 
-        result.push_back(list<Form>{form});
+        result.push_back(list<FormType>{form});
     }
 
     // Then the other forms
@@ -145,12 +146,12 @@ list<list<Form>> Polynomial::getFormsInComplexityRange_implementation(
                     = formerlyUsedDimensions.getCombinationsWithKUnused(d, nbNewDimensions);
 
             // We compute all corresponding forms and create a sublist to store them
-            list<Form> newForms;
+            list<FormType> newForms;
             for (auto& comb : dimensionCombinations)
             {
-                Form form(std::move(comb));
+                FormType form(std::move(comb));
                 form.complexity = c;
-                form.other = N;
+                form.degree = N;
                 newForms.push_back(std::move(form));
             }
 
@@ -177,7 +178,11 @@ list<list<Form>> Polynomial::getFormsInComplexityRange_implementation(
 // The function returns whether is was a success
 //   and (only if it succeeded) the fitness of the form that was found
 //   (the lower the better)
-tuple<bool,double> Polynomial::tryFit_implementation(Form& form, unsigned int nbPoints, Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd, unsigned int outputID, unsigned int dimInOutput)
+tuple<bool,double> Polynomial::tryFit_implementation(
+        FormType& form, unsigned int nbPoints,
+        Models::ModelConstIterator<Polynomial> mBegin,
+        Models::ModelConstIterator<Polynomial> mEnd,
+        unsigned int outputID, unsigned int dimInOutput)
 {
     // We compute normalization coefficients and store them in form.params
     // We also compute the amplitude of the output and store it in form.params
@@ -247,11 +252,11 @@ tuple<bool,double> Polynomial::tryFit_implementation(Form& form, unsigned int nb
 }
 
 
-Form Polynomial::fitOnePoint_implementation(double t, unsigned int nbDims)
+FormType Polynomial::fitOnePoint_implementation(double t, unsigned int nbDims)
 {
-    Form form (UsedDimensions{nbDims});
+    FormType form (UsedDimensions{nbDims});
     form.complexity = 1;
-    form.other = 0;
+    form.degree = 0;
     form.params = vector<double>{t,1};
 
     return form;
@@ -259,11 +264,11 @@ Form Polynomial::fitOnePoint_implementation(double t, unsigned int nbDims)
 
 
 // Estimates the value for the given inputs
-vector<double> Polynomial::estimate_implementation(Form const&form, vector<vector<double>> const& points)
+vector<double> Polynomial::estimate_implementation(FormType const&form, vector<vector<double>> const& points)
 {
     unsigned int const nbPoints = points.size();
     unsigned int const nbDims = form.usedDimensions.getNbUsed();
-    unsigned int const degree = form.other;
+    unsigned int const degree = form.degree;
 
     auto const pBegin = form.params.begin();
 
@@ -318,10 +323,10 @@ vector<double> Polynomial::estimate_implementation(Form const&form, vector<vecto
 
 
 // Returns the form as a readable string (same order as getTerms)
-string Polynomial::formToString_implementation(Form const& form, vector<string> inputNames)
+string Polynomial::formToString_implementation(FormType const& form, vector<string> inputNames)
 {
     unsigned int const nbDims = form.usedDimensions.getNbUsed();
-    unsigned int const degree = form.other;
+    unsigned int const degree = form.degree;
 
     // First we select the variable names
     vector<string> dimNames;
@@ -490,17 +495,16 @@ unsigned int Polynomial::complexity(unsigned int degree, unsigned int nbUsedDime
 // Trying to fit the polynomial to the points with GLPK
 // - the first bool is set to true if a problem occured
 // - the other values in the tuple are the actual return values
-tuple<bool,bool,double> Polynomial::tryFitGLPK(Form& form,
-                                       unsigned int nbPoints,
-                                       Models::ModelConstIterator mBegin,
-                                       Models::ModelConstIterator mEnd,
-                                       unsigned int outputID,
-                                       unsigned int dimInOutput)
+tuple<bool,bool,double> Polynomial::tryFitGLPK(
+        FormType& form,unsigned int nbPoints,
+        Models::ModelConstIterator<Polynomial> mBegin,
+        Models::ModelConstIterator<Polynomial> mEnd,
+        unsigned int outputID, unsigned int dimInOutput)
 {
     auto const usedInputDimIds = form.usedDimensions.getIds();
     unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
     unsigned int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
-    unsigned int const degree = form.other;
+    unsigned int const degree = form.degree;
 
     vector<double> inputNormalizationFactors(totalNbInputDims);
 
@@ -644,14 +648,16 @@ tuple<bool,bool,double> Polynomial::tryFitGLPK(Form& form,
 
 
 // Same thing with soplex
-tuple<bool,bool,double> Polynomial::tryFitSoplex(Form& form,
-                                                 Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
-                                                 unsigned int outputID, unsigned int dimInOutput)
+tuple<bool,bool,double> Polynomial::tryFitSoplex(
+        FormType& form,
+        Models::ModelConstIterator<Polynomial> mBegin,
+        Models::ModelConstIterator<Polynomial> mEnd,
+        unsigned int outputID, unsigned int dimInOutput)
 {
     auto const usedInputDimIds = form.usedDimensions.getIds();
     unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
     unsigned int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
-    unsigned int const degree = form.other;
+    unsigned int const degree = form.degree;
 
     vector<double> inputNormalizationFactors(totalNbInputDims);
 

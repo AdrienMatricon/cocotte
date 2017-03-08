@@ -26,7 +26,7 @@ private:
     // Each model is a binary tree :
     // - each leaf contains a point
     // - each node contains a form of the approximator that explains all points under it
-    std::list<std::shared_ptr<Models::Model>> models;
+    std::list<std::shared_ptr<Models::Model<ApproximatorType>>> models;
 
     unsigned int outputID;            // ID of the output in the DataPoint
     unsigned int nbInputDims;         // number of dimensions in the input
@@ -48,8 +48,8 @@ public:
 
 
     // Adding and removing models
-    void addModel(std::shared_ptr<Models::Model> model);
-    std::shared_ptr<Models::Model> firstModel();
+    void addModel(std::shared_ptr<Models::Model<ApproximatorType>> model);
+    std::shared_ptr<Models::Model<ApproximatorType>> firstModel();
     void removeFirstModel();
 
     // Creates leaves for the new points and merges them with models or submodels,
@@ -102,11 +102,14 @@ private:
     };
 
     // Utility function
-    std::shared_ptr<Models::Model> createLeaf(std::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
+    std::shared_ptr<Models::Model<ApproximatorType>> createLeaf(std::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
 
     // Tries to merge two models into one without increasing complexity
     // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
-    std::shared_ptr<Models::Model> tryMerge(std::shared_ptr<Models::Model> model0, std::shared_ptr<Models::Model> model1, bool markAsTemporary = false);
+    std::shared_ptr<Models::Model<ApproximatorType>> tryMerge(
+            std::shared_ptr<Models::Model<ApproximatorType>> model0,
+            std::shared_ptr<Models::Model<ApproximatorType>> model1,
+            bool markAsTemporary = false);
 
     // Merges the models with each other, starting with the closest ones:
     // - atomicModels is a list of leaves, or more generally of models that are supposed correctly merged
@@ -117,10 +120,11 @@ private:
     // - if addingToExistingModelsis set to true:
     //   => atomicModels will not be merged with each other before being merged with those in independentlyMergedModels
     //   => no rollback will be done
-    std::list<std::shared_ptr<Models::Model>> mergeAsMuchAsPossible(std::list<std::shared_ptr<Models::Model>>&& atomicModels,
-                                                                    std::list<std::shared_ptr<Models::Model>>&& independentlyMergedModels,
-                                                                    bool noRollback = false,
-                                                                    bool addToExistingModelsOnly = false);
+    std::list<std::shared_ptr<Models::Model<ApproximatorType>>> mergeAsMuchAsPossible(
+            std::list<std::shared_ptr<Models::Model<ApproximatorType>>>&& atomicModels,
+            std::list<std::shared_ptr<Models::Model<ApproximatorType>>>&& independentlyMergedModels,
+            bool noRollback = false,
+            bool addToExistingModelsOnly = false);
 
 
     // Serialization
@@ -129,8 +133,8 @@ private:
     {
         (void) version; // Unused parameter
 
-        archive.template register_type<Models::Leaf>();
-        archive.template register_type<Models::Node>();
+        archive.template register_type<Models::Leaf<ApproximatorType>>();
+        archive.template register_type<Models::Node<ApproximatorType>>();
         archive & mList.models;
         archive & mList.outputID;
         archive & mList.nbInputDims;

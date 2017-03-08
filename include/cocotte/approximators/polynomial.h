@@ -2,6 +2,10 @@
 #define COCOTTE_APPROXIMATORS_POLYNOMIAL_H
 
 
+#include <vector>
+#include <boost/serialization/vector.hpp>
+#include <cocotte/useddimensions.h>
+#include <cocotte/approximators/forward.h>
 #include <cocotte/approximators/approximator.h>
 
 
@@ -9,6 +13,42 @@
 namespace Cocotte {
 namespace Approximators {
 
+
+class Polynomial;
+
+template <>
+struct Form<Polynomial>
+{
+    UsedDimensions usedDimensions;
+    std::vector<double> params;
+    unsigned int complexity = 0;
+    unsigned int degree = 0;
+
+    Form() = default;
+    Form(UsedDimensions uD) : usedDimensions(uD) {}
+
+    // Serialization
+    template<typename Archive>
+    friend void serialize(Archive& archive, Form& form, const unsigned int version)
+    {
+        (void) version; // Unused parameter
+
+        archive & form.usedDimensions;
+        archive & form.params;
+        archive & form.complexity;
+        archive & form.degree;
+    }
+
+    // Display
+    friend std::ostream& operator<< (std::ostream& out, Form const& form)
+    {
+        out << "Complexity " << form.complexity
+            << " (degree: " << form.degree << ")"
+            << " of dimensions " << form.usedDimensions;
+
+        return out;
+    }
+};
 
 
 class Polynomial : public Approximator<Polynomial>
@@ -30,7 +70,7 @@ private:
     // Those forms are returned as a lists of sublists of forms, such that:
     //   - forms in the same sublist have the same complexity
     //   - sublists are sorted by (non strictly) increasing complexity
-    static std::list<std::list<Form>> getFormsInComplexityRange_implementation(
+    static std::list<std::list<Form<Polynomial>>> getFormsInComplexityRange_implementation(
             UsedDimensions const& formerlyUsedDimensions,
             unsigned int nbNewDimensions,
             unsigned int minComplexity,
@@ -41,17 +81,21 @@ private:
     // The function returns whether is was a success
     //   and (only if it succeeded) the fitness of the form that was found
     //   (the lower the better)
-    static std::tuple<bool,double> tryFit_implementation(Form& form, unsigned int nbPoints,
-                                                         Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
-                                                         unsigned int outputID, unsigned int dimInOutput);
+    static std::tuple<bool,double> tryFit_implementation(
+            Form<Polynomial>& form, unsigned int nbPoints,
+            Models::ModelConstIterator<Polynomial> mBegin,
+            Models::ModelConstIterator<Polynomial> mEnd,
+            unsigned int outputID, unsigned int dimInOutput);
 
-    static Form fitOnePoint_implementation(double t, unsigned int nbDims);
+    static Form<Polynomial> fitOnePoint_implementation(double t, unsigned int nbDims);
 
     // Estimates the value for the given inputs
-    static std::vector<double> estimate_implementation(Form const& form, std::vector<std::vector<double>> const& x);
+    static std::vector<double> estimate_implementation(
+            Form<Polynomial> const& form, std::vector<std::vector<double>> const& x);
 
     // Returns the form as a readable string (same order as getTerms)
-    static std::string formToString_implementation(Form const& form, std::vector<std::string> inputNames);
+    static std::string formToString_implementation(
+            Form<Polynomial> const& form, std::vector<std::string> inputNames);
 
 
 
@@ -72,14 +116,18 @@ private:
     // Trying to fit the polynomial to the points with GLPK
     // - the first bool is set to true if a problem occured
     // - the other values in the tuple are the actual return values
-    static std::tuple<bool,bool,double> tryFitGLPK(Form& form, unsigned int nbPoints,
-                                                   Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
-                                                   unsigned int outputID, unsigned int dimInOutput);
+    static std::tuple<bool,bool,double> tryFitGLPK(
+            Form<Polynomial>& form, unsigned int nbPoints,
+            Models::ModelConstIterator<Polynomial> mBegin,
+            Models::ModelConstIterator<Polynomial> mEnd,
+            unsigned int outputID, unsigned int dimInOutput);
 
     // Same thing with soplex
-    static std::tuple<bool,bool,double> tryFitSoplex(Form& form,
-                                                     Models::ModelConstIterator mBegin, Models::ModelConstIterator mEnd,
-                                                     unsigned int outputID, unsigned int dimInOutput);
+    static std::tuple<bool,bool,double> tryFitSoplex(
+            Form<Polynomial>& form,
+            Models::ModelConstIterator<Polynomial> mBegin,
+            Models::ModelConstIterator<Polynomial> mEnd,
+            unsigned int outputID, unsigned int dimInOutput);
 
 };
 
