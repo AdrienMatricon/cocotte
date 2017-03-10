@@ -499,8 +499,8 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         unsigned int const maxAllowedComplexity = form0.complexity + form1.complexity;
 
         // The lowest complexity form which has been found
-        FormType bestNewForm;
-        double bestFitness = 2.;
+        list<FormType> bestForms;
+        unsigned int bestComplexity = maxAllowedComplexity + 2;
 
         // We look for a form that would fit the points,
         //   and use a binary search to get the lowest complexity one
@@ -552,40 +552,33 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                 // We try to fit the points with those forms,
                 //   starting with the lowest complexity forms
                 {
-                    bool stop = false;
                     for (auto& someForms : possibleForms)
                     {
-                        for (auto& form : someForms)
-                        {
-                            if (success && form.complexity > bestNewForm.complexity)
-                            {
-                                stop = true;
-                                break;
-                            }
-
-                            // For each form, we try to fit all points
-                            auto const fitResult = ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, outputDim);
-                            if (std::get<0>(fitResult))
-                            {
-                                double const fitness = std::get<1>(fitResult);
-
-                                if (!success || (fitness < bestFitness))
-                                {
-                                    bestNewForm = form;
-                                    bestFitness = fitness;
-
-                                    if (!success)
-                                    {
-                                        success = true;
-                                        upperBound = middleComplexityRangeMin - 1u;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (stop)
+                        if (someForms.front().complexity > bestComplexity)
                         {
                             break;
+                        }
+
+                        for (auto& form : someForms)
+                        {
+                            // For each form, we try to fit all points
+                            bool const fitResult = ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, outputDim);
+                            if (fitResult)
+                            {
+                                if (!success)
+                                {
+                                    success = true;
+                                    upperBound = middleComplexityRangeMin - 1u;
+                                }
+
+                                if (form.complexity < bestComplexity)
+                                {
+                                    bestForms = list<FormType>{};
+                                    bestComplexity = form.complexity;
+                                }
+
+                                bestForms.push_back(form);
+                            }
                         }
                     }
                 }
@@ -596,18 +589,34 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                 }
             }
 
-            if ((bestNewForm.complexity > 0)                            // at least one success
-                    && (bestNewForm.complexity < maxAllowedComplexity)) // structure was used to reduce complexity
+            if (bestComplexity < maxAllowedComplexity)
             {
+                // At least one success and structure was used to reduce complexity,
+                //   so we can end here.
+                // Otherwise we go for the next loop, with more additional dimensions
                 break;
             }
         }
 
-        if (bestNewForm.complexity == 0)
+        if (bestComplexity > maxAllowedComplexity)
         {
             // We never succeeded
             // => we return a default-constructed shared_ptr
             return shared_ptr<ModelType>{};
+        }
+
+        auto bestNewForm = bestForms.front();
+        bestForms.pop_front();
+        auto bestFitness = ApproximatorType::refine(bestNewForm, nbPoints, mBegin, mEnd, outputID, outputDim);
+
+        for (auto& form : bestForms)
+        {
+            auto const fitness = ApproximatorType::refine(form, nbPoints, mBegin, mEnd, outputID, outputDim);
+            if (bestFitness < fitness)
+            {
+                bestNewForm = form;
+                bestFitness = fitness;
+            }
         }
 
         newForms.push_back(bestNewForm);

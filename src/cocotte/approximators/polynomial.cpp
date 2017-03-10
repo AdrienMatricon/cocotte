@@ -20,6 +20,7 @@ using std::max;
 #include <tuple>
 using std::tuple;
 using std::make_tuple;
+#include <exception>
 #include <glpk.h>
 #include <soplex/src/soplex.h>
 #include <cocotte/datatypes.h>
@@ -49,7 +50,7 @@ unsigned int Polynomial::getComplexityRangeLowerBound_implementation(
 
     for (unsigned int d = 1; d < maxNbDimensions; ++d)
     {
-        unsigned int N = 1;     // degree
+        unsigned int N = 1;                 // degree
         unsigned int c = complexity(N, d);
 
         // We look for the highest possible degree N >= 1 that allows for a complexity
@@ -106,7 +107,7 @@ list<list<FormType>> Polynomial::getFormsInComplexityRange_implementation(
         return {};
     }
 
-    unsigned int const maxNbDims = min(maxComplexity - 1u,  // c = N*d+1, thus d <= c-1 for N > 0
+    unsigned int const maxNbDims = min(maxComplexity - 1u,      // c = N*d+1, thus d <= c-1 for N > 0
                                        nbAvailableDimensions);
 
 
@@ -176,19 +177,47 @@ list<list<FormType>> Polynomial::getFormsInComplexityRange_implementation(
 // Tries to fit the points with a form
 // If it succeeds, params are stored within the form
 // The function returns whether is was a success
-//   and (only if it succeeded) the fitness of the form that was found
-//   (the lower the better)
-tuple<bool,double> Polynomial::tryFit_implementation(
-        FormType& form, unsigned int nbPoints,
+bool Polynomial::tryFit_implementation(
+        Form<Polynomial>& form, unsigned int nbPoints,
         Models::ModelConstIterator<Polynomial> mBegin,
         Models::ModelConstIterator<Polynomial> mEnd,
         unsigned int outputID, unsigned int dimInOutput)
 {
+    auto const tryFitRefineResult = tryFitRefine(form, nbPoints, mBegin, mEnd, outputID, dimInOutput, false);
+    return std::get<0>(tryFitRefineResult);
+}
+
+// Refines a form so as to get the best fitness
+// Returns the fitness of that form
+Fitness<Polynomial> Polynomial::refine_implementation(
+        Form<Polynomial>& form, unsigned int nbPoints,
+        Models::ModelConstIterator<Polynomial> mBegin,
+        Models::ModelConstIterator<Polynomial> mEnd,
+        unsigned int outputID, unsigned int dimInOutput)
+{
+    auto const tryFitRefineResult = tryFitRefine(form, nbPoints, mBegin, mEnd, outputID, dimInOutput, true);
+    return std::get<1>(tryFitRefineResult);
+}
+
+// Tries to fit the points with a form
+// If it succeeds, params are stored within the form
+// The function returns whether is was a success
+//   and (only if it succeeded) the fitness of the form that was found
+tuple<bool, Fitness<Polynomial>> Polynomial::tryFitRefine(
+        FormType& form, unsigned int nbPoints,
+        Models::ModelConstIterator<Polynomial> mBegin,
+        Models::ModelConstIterator<Polynomial> mEnd,
+        unsigned int outputID, unsigned int dimInOutput,
+        bool refineMode)
+{
+    unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
+    unsigned int const degree = form.degree;
+    vector<unsigned int> allowedDegrees(nbUsedInputDims, degree);
+
     // We compute normalization coefficients and store them in form.params
     // We also compute the amplitude of the output and store it in form.params
     {
         auto const usedInputDimIds = form.usedDimensions.getIds();
-        unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
         unsigned int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
 
         // We determine the maximum absolute value for each used dimension and the output
@@ -230,25 +259,85 @@ tuple<bool,double> Polynomial::tryFit_implementation(
         form.params.push_back(maxOutput);
     }
 
-    // We try to fit the form to the data
-    auto const soplexResult = tryFitSoplex(form, mBegin, mEnd, outputID, dimInOutput);
-
-    if (std::get<0>(soplexResult))
+    // We determine if the form can fit the data
+    auto lambda = [&](FormType& candidateForm)
     {
-        auto const glpkResult = tryFitGLPK(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
+        tuple<bool, Fitness<Polynomial>> result;
+        auto const soplexResult = tryFitSoplex(candidateForm, mBegin, mEnd, outputID, dimInOutput, allowedDegrees);
 
-        if (std::get<0>(glpkResult))
+        if (std::get<0>(soplexResult))
         {
-            cerr << "Neither soplex nor GLPK can solve this" << endl;
-            exit(1);
+            return make_tuple(std::get<1>(soplexResult), std::get<2>(soplexResult));
         }
-        else
+        else        // Something went wrong when calling soplex
         {
-            return make_tuple(std::get<1>(glpkResult), std::get<2>(glpkResult));
+            auto const glpkResult = tryFitGLPK(candidateForm, nbPoints, mBegin, mEnd, outputID, dimInOutput, allowedDegrees);
+
+            if (std::get<0>(glpkResult))
+            {
+                return make_tuple(std::get<1>(glpkResult), std::get<2>(glpkResult));
+            }
+            else    // Something went wrong while calling GLPK
+            {
+                throw std::runtime_error("Neither soplex nor GLPK can solve the linear program");
+            }
+        }
+        return result;
+    };
+
+    auto formCopy = form;
+    auto result = lambda(formCopy);
+
+    // When tryFit() is called, we only need to know if the form can fit the data
+    if (!refineMode)
+    {
+        return result;
+    }
+
+    // Otherwise, we know it can and we refine it by trying to reduce the degree in each dimension
+    bool usingMaxDegree = false;
+    unsigned int const lastOne = nbUsedInputDims - 1;
+    for (unsigned int usedInputDimID = 0; usedInputDimID < nbUsedInputDims; ++usedInputDimID)
+    {
+        if ((usedInputDimID == lastOne) && !usingMaxDegree)
+        {
+            break;
+        }
+
+        unsigned int lowerBound = 1;
+        unsigned int upperBound = degree;
+
+        while (upperBound - lowerBound > 0)
+        {
+            unsigned int const middle = (upperBound + lowerBound)/2;
+            allowedDegrees[usedInputDimID] = middle;
+
+            formCopy = form;
+            auto temp = lambda(formCopy);
+
+            if (std::get<0>(temp))
+            {
+                result = temp;
+                upperBound = middle;
+            }
+            else
+            {
+                lowerBound = middle + 1;
+            }
+        }
+
+        allowedDegrees[usedInputDimID] = upperBound;
+        if (upperBound == degree)
+        {
+            usingMaxDegree = true;
         }
     }
 
-    return make_tuple(std::get<1>(soplexResult), std::get<2>(soplexResult));
+    // Then we update the form
+    form = formCopy;
+    form.respectiveMaxDegrees = allowedDegrees;
+
+    return result;
 }
 
 
@@ -305,7 +394,7 @@ vector<double> Polynomial::estimate_implementation(FormType const&form, vector<v
     // Computing the weighted sum of the terms of the polynomial
     for (auto& point : processedPoints)
     {
-        vector<double> const terms = Polynomial::getTerms(point, degree);
+        vector<double> const terms = Polynomial::getTerms(point, degree, form.respectiveMaxDegrees);
         double t = 0;
         auto pIt = pCoeffsBegin;
 
@@ -365,48 +454,47 @@ string Polynomial::formToString_implementation(FormType const& form, vector<stri
 
 
 // Evaluates all terms of the polynomial and returns them as a vector
-vector<double> Polynomial::getTerms(vector<double> const& vals, unsigned int degree)
+vector<double> Polynomial::getTerms(vector<double> const& vals,
+                                    unsigned int maxDegree,
+                                    vector<unsigned int> const& respectiveMaxDegrees)
 {
-    // We handle trivial cases first
-    if (degree < 2)
+    // We handle the trivial case first
+    if (maxDegree < 1)
     {
-        if (degree < 1)
-        {
-            // If the degree is zero, we return a vector only containing a 1
-            return vector<double>(1,1);
-        }
-
-        vector<double> result(1,1);
-        result.insert(result.end(), vals.begin(), vals.end());
-        return result;
+        // If the degree is zero, we return a vector only containing a 1
+        return vector<double>(1,1);
     }
 
-    // We create a vector terms such that
-    // terms[i] contains all terms of degree i
-    unsigned int const nbTermsForOneDim = degree + 1;
+    // Then normal cases
     vector<list<double>> terms;
-    terms.reserve(nbTermsForOneDim);
-
     auto const vBegin = vals.begin(), vEnd = vals.end();
+    auto const dBegin = respectiveMaxDegrees.begin();
 
     // We initialize terms by adding the first dimension terms to it
     {
+        unsigned int const maxDegreeInDimension = *dBegin;
+        terms.reserve(maxDegreeInDimension + 1);
         double const val = *vBegin;
         double temp = val;
 
         terms.push_back(list<double>(1, 1.));
         terms.push_back(list<double>(1, temp));
 
-        for (unsigned int N = 2; N < nbTermsForOneDim; ++N)
+        unsigned int N;
+        for (N = 2; N <= maxDegreeInDimension; ++N)
         {
             temp *= val;
             terms.push_back(list<double>(1, temp));
         }
-
+        for (; N <= maxDegree; ++N)
+        {
+            terms.push_back(list<double>{});
+        }
     }
 
     // We now add all other dimensions
-    for (auto vIt = vBegin + 1; vIt != vEnd; ++vIt)
+    auto dIt = dBegin + 1;
+    for (auto vIt = vBegin + 1; vIt != vEnd; ++vIt, ++dIt)
     {
         auto newTerms = terms;
 
@@ -417,7 +505,7 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, unsigned int deg
         {
             newTerms[1].push_back(temp);
 
-            unsigned int const endLoop = degree;
+            unsigned int const endLoop = maxDegree;
             for (unsigned int M = 1; M < endLoop; ++M)
             {
                 // M is the degree in the old dimensions
@@ -430,13 +518,14 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, unsigned int deg
         }
 
         // We add all other terms
-        for (unsigned int N = 2; N < nbTermsForOneDim; ++N)
+        unsigned int const maxDegreeInDimension = *dIt;
+        for (unsigned int N = 2; N <= maxDegreeInDimension; ++N)
         {
             // N is the degree in the new dimension
             temp *= val;
             newTerms[N].push_back(temp);
 
-            unsigned int const endLoop = degree - N + 1;
+            unsigned int const endLoop = maxDegree - N + 1;
             for (unsigned int M = 1; M < endLoop; ++M)
             {
                 // M is the degree in the old dimensions
@@ -464,20 +553,49 @@ vector<double> Polynomial::getTerms(vector<double> const& vals, unsigned int deg
 
 
 // Number of terms returned by getTerms
-unsigned int Polynomial::getNbTerms(unsigned int nbDims, unsigned int degree)
+unsigned int Polynomial::getNbTerms(unsigned int maxDegree,
+                                    vector<unsigned int> const& respectiveMaxDegrees)
 {
-    // nbDims among degree + nbDims
-    unsigned int numerator = 1;
-    unsigned int denominator = 1;
-    unsigned int const sum = nbDims + degree;
-
-    for (unsigned int i = 0; i < nbDims; ++i)
+    // We handle the trivial case first
+    if (maxDegree < 1)
     {
-        numerator *= sum - i;
-        denominator *= nbDims - i;
+        return 1;
     }
 
-    auto const result = numerator / denominator;
+    // Then normal cases
+    vector<unsigned int> nbTermsByDegree;
+    auto const dBegin = respectiveMaxDegrees.begin(), dEnd = respectiveMaxDegrees.end();
+
+    // We initialize terms by adding the first dimension terms to it
+    nbTermsByDegree.resize(*dBegin + 1, 1);
+    nbTermsByDegree.resize(maxDegree + 1, 0);
+
+    // We now add all other dimensions
+    for (auto dIt = dBegin + 1; dIt != dEnd; ++dIt)
+    {
+        auto newNbTermsByDegree = nbTermsByDegree;
+        unsigned int const maxDegreeInDimension = *dIt;
+        for (unsigned int N = 1; N <= maxDegreeInDimension; ++N)
+        {
+            // N is the degree in the new dimension
+            unsigned int const endLoop = maxDegree - N + 1;
+            for (unsigned int M = 0; M < endLoop; ++M)
+            {
+                // M is the degree in the old dimensions
+                newNbTermsByDegree[M + N] += nbTermsByDegree[M];
+            }
+        }
+
+        nbTermsByDegree = std::move(newNbTermsByDegree);
+    }
+
+    // We put every term in a vector and return it
+    unsigned int result = 0u;
+
+    for (auto& partialNbTerms : nbTermsByDegree)
+    {
+        result += partialNbTerms;
+    }
 
     return result;
 }
@@ -495,11 +613,12 @@ unsigned int Polynomial::complexity(unsigned int degree, unsigned int nbUsedDime
 // Trying to fit the polynomial to the points with GLPK
 // - the first bool is set to true if a problem occured
 // - the other values in the tuple are the actual return values
-tuple<bool,bool,double> Polynomial::tryFitGLPK(
+tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitGLPK(
         FormType& form,unsigned int nbPoints,
         Models::ModelConstIterator<Polynomial> mBegin,
         Models::ModelConstIterator<Polynomial> mEnd,
-        unsigned int outputID, unsigned int dimInOutput)
+        unsigned int outputID, unsigned int dimInOutput,
+        vector<unsigned int> const& respectiveMaxDegrees)
 {
     auto const usedInputDimIds = form.usedDimensions.getIds();
     unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
@@ -527,7 +646,7 @@ tuple<bool,bool,double> Polynomial::tryFitGLPK(
     lp = glp_create_prob();
     glp_set_obj_dir(lp, GLP_MIN);
 
-    unsigned int const nbTerms = getNbTerms(nbUsedInputDims, degree);
+    unsigned int const nbTerms = getNbTerms(degree, respectiveMaxDegrees);
     unsigned int const nbVars = nbTerms + 1;
 
     // We add variables
@@ -569,7 +688,7 @@ tuple<bool,bool,double> Polynomial::tryFitGLPK(
         }
 
         // Polynomial terms
-        vector<double> const terms = getTerms(normalizedInput, degree);
+        vector<double> const terms = getTerms(normalizedInput, degree, respectiveMaxDegrees);
 
         // f(x) + prec * slack >= t
         {
@@ -626,13 +745,13 @@ tuple<bool,bool,double> Polynomial::tryFitGLPK(
     if (glp_simplex(lp, &glpParams) != 0)
     {
         glp_delete_prob(lp);
-        return make_tuple(true, false, 0.);                     // (a problem occured, no solution found)
+        return make_tuple(false, false, Fitness<Polynomial>{});                                 // (a problem occured, no solution found)
     }
 
     if (glp_get_col_prim(lp, 1) > 1.0)
     {
         glp_delete_prob(lp);
-        return make_tuple(false, false, 0.);                    // (no problem occured, no solution found which satisfies all constraints)
+        return make_tuple(true, false, Fitness<Polynomial>{});                                  // (no problem occured, no solution found which satisfies all constraints)
     }
 
     for (unsigned int i = 2; i < supI; ++i)
@@ -642,17 +761,24 @@ tuple<bool,bool,double> Polynomial::tryFitGLPK(
 
     glp_delete_prob(lp);
 
-    return make_tuple(false, true, glp_get_col_prim(lp, 1));    // (no problem occured, solution(s) found)
+    unsigned int sumDegrees = 0u;
+    for (auto const& deg : respectiveMaxDegrees)
+    {
+        sumDegrees += deg;
+    }
+
+    return make_tuple(true, true, Fitness<Polynomial>(sumDegrees, glp_get_col_prim(lp, 1)));    // (no problem occured, solution(s) found)
 }
 
 
 
 // Same thing with soplex
-tuple<bool,bool,double> Polynomial::tryFitSoplex(
+tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitSoplex(
         FormType& form,
         Models::ModelConstIterator<Polynomial> mBegin,
         Models::ModelConstIterator<Polynomial> mEnd,
-        unsigned int outputID, unsigned int dimInOutput)
+        unsigned int outputID, unsigned int dimInOutput,
+        vector<unsigned int> const& respectiveMaxDegrees)
 {
     auto const usedInputDimIds = form.usedDimensions.getIds();
     unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
@@ -681,15 +807,15 @@ tuple<bool,bool,double> Polynomial::tryFitSoplex(
     problem.setIntParam(soplex::SoPlex::OBJSENSE, soplex::SoPlex::OBJSENSE_MINIMIZE);
     problem.setIntParam(soplex::SoPlex::VERBOSITY, soplex::SoPlex::VERBOSITY_ERROR);
 
-    unsigned int const nbTerms = getNbTerms(nbUsedInputDims, degree);
+    unsigned int const nbTerms = getNbTerms(degree, respectiveMaxDegrees);
     unsigned int const nbVars = nbTerms + 1;
 
     // We add variables
     soplex::DSVector dummycol(0);
-    problem.addColReal(soplex::LPCol(1.0, dummycol, soplex::infinity, 0.0));    // positive slack variable equal to the cost function
+    problem.addColReal(soplex::LPCol(1.0, dummycol, soplex::infinity, 0.0));                    // positive slack variable equal to the cost function
     for (unsigned int i = 0; i < nbTerms; ++i)
     {
-        problem.addColReal(soplex::LPCol(0., dummycol, soplex::infinity, -soplex::infinity));  // unbound parameters
+        problem.addColReal(soplex::LPCol(0., dummycol, soplex::infinity, -soplex::infinity));   // unbound parameters
     }
 
     // We add constraints (2 per datapoint)
@@ -711,7 +837,7 @@ tuple<bool,bool,double> Polynomial::tryFitSoplex(
         }
 
         // Polynomial terms
-        vector<double> const terms = getTerms(normalizedInput, degree);
+        vector<double> const terms = getTerms(normalizedInput, degree, respectiveMaxDegrees);
 
         // f(x) + prec * slack >= t
         {
@@ -744,7 +870,7 @@ tuple<bool,bool,double> Polynomial::tryFitSoplex(
     // Now we solve the optimization problem and deduce if the form fit the data
     if (problem.solve() != soplex::SPxSolver::OPTIMAL)
     {
-        return make_tuple(true, false, 0.);     // (a problem occured, no solution found)
+        return make_tuple(false, false, Fitness<Polynomial>{});                  // (a problem occured, no solution found)
     }
 
     soplex::DVector primal(nbVars);
@@ -752,7 +878,7 @@ tuple<bool,bool,double> Polynomial::tryFitSoplex(
 
     if (primal[0] > 1.0)
     {
-        return make_tuple(false, false, 0.);    // (no problem occured, no solution found which satisfies all constraints)
+        return make_tuple(true, false, Fitness<Polynomial>{});                 // (no problem occured, no solution found which satisfies all constraints)
     }
 
     for (unsigned int i = 1; i < nbVars; ++i)
@@ -760,7 +886,13 @@ tuple<bool,bool,double> Polynomial::tryFitSoplex(
         form.params.push_back(primal[i]);
     }
 
-    return make_tuple(false, true, primal[0]);  // (no problem occured, solution(s) found)
+    unsigned int sumDegrees = 0u;
+    for (auto const& deg : respectiveMaxDegrees)
+    {
+        sumDegrees += deg;
+    }
+
+    return make_tuple(true, true, Fitness<Polynomial>(sumDegrees, primal[0]));  // (no problem occured, solution(s) found)
 }
 
 

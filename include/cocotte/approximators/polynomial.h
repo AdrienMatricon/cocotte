@@ -16,37 +16,70 @@ namespace Approximators {
 
 class Polynomial;
 
+
 template <>
 struct Form<Polynomial>
 {
     UsedDimensions usedDimensions;
-    std::vector<double> params;
     unsigned int complexity = 0;
     unsigned int degree = 0;
+    std::vector<unsigned int> respectiveMaxDegrees;
+    std::vector<double> params;
 
     Form() = default;
     Form(UsedDimensions uD) : usedDimensions(uD) {}
 
     // Serialization
     template<typename Archive>
-    friend void serialize(Archive& archive, Form& form, const unsigned int version)
+    friend void serialize(Archive& archive, Form<Polynomial>& form, const unsigned int version)
     {
         (void) version; // Unused parameter
 
         archive & form.usedDimensions;
-        archive & form.params;
         archive & form.complexity;
         archive & form.degree;
+        archive & form.respectiveMaxDegrees;
+        archive & form.params;
     }
 
     // Display
-    friend std::ostream& operator<< (std::ostream& out, Form const& form)
+    friend std::ostream& operator<< (std::ostream& out, Form<Polynomial> const& form)
     {
         out << "Complexity " << form.complexity
             << " (degree: " << form.degree << ")"
             << " of dimensions " << form.usedDimensions;
 
         return out;
+    }
+};
+
+
+template <>
+struct Fitness<Polynomial>
+{
+    unsigned int sumDegrees;
+    double slack;
+
+    Fitness() = default;
+    Fitness(unsigned int nbTerms, double slack) : sumDegrees(nbTerms), slack(slack){}
+
+    // Relational operator
+    // a < b means b is a better fitness
+    friend bool operator<(Fitness<Polynomial> const& fitness0, Fitness<Polynomial> const& fitness1)
+    {
+        return (fitness0.sumDegrees > fitness1.sumDegrees)
+                || ((fitness0.sumDegrees == fitness1.sumDegrees)
+                    && (fitness0.slack > fitness1.slack));
+    }
+
+    // Serialization
+    template<typename Archive>
+    friend void serialize(Archive& archive, Fitness<Polynomial>& fitness, const unsigned int version)
+    {
+        (void) version; // Unused parameter
+
+        archive & fitness.sumDegrees;
+        archive & fitness.slack;
     }
 };
 
@@ -77,15 +110,33 @@ private:
             unsigned int maxComplexity);
 
     // Tries to fit the points with a form
-    // If it succeeds, params are stored within the form
     // The function returns whether is was a success
-    //   and (only if it succeeded) the fitness of the form that was found
-    //   (the lower the better)
-    static std::tuple<bool,double> tryFit_implementation(
+    static bool tryFit_implementation(
             Form<Polynomial>& form, unsigned int nbPoints,
             Models::ModelConstIterator<Polynomial> mBegin,
             Models::ModelConstIterator<Polynomial> mEnd,
             unsigned int outputID, unsigned int dimInOutput);
+
+    // Refines a form so as to get the best fitness
+    // Params are stored within the form
+    // Returns the fitness of that form
+    static Fitness<Polynomial> refine_implementation(
+            Form<Polynomial>& form, unsigned int nbPoints,
+            Models::ModelConstIterator<Polynomial> mBegin,
+            Models::ModelConstIterator<Polynomial> mEnd,
+            unsigned int outputID, unsigned int dimInOutput);
+
+    // Tries to fit the points with a form
+    // If it succeeds, params are stored within the form
+    // The function returns whether is was a success
+    //   and (only if it succeeded) the fitness of the form that was found
+    //   (the lower the better)
+    static std::tuple<bool, Fitness<Polynomial>> tryFitRefine(
+            Form<Polynomial>& form, unsigned int nbPoints,
+            Models::ModelConstIterator<Polynomial> mBegin,
+            Models::ModelConstIterator<Polynomial> mEnd,
+            unsigned int outputID, unsigned int dimInOutput,
+            bool refineMode);
 
     static Form<Polynomial> fitOnePoint_implementation(double t, unsigned int nbDims);
 
@@ -102,10 +153,13 @@ private:
     // Helper functions
 
     // Evaluates all terms of the polynomial and returns them as a vector
-    static std::vector<double> getTerms(std::vector<double> const& vals, unsigned int degree);
+    static std::vector<double> getTerms(std::vector<double> const& vals,
+                                        unsigned int maxDegree,
+                                        std::vector<unsigned int> const& respectiveMaxDegrees);
 
-    // Number of terms returned by getTerms
-    static unsigned int getNbTerms(unsigned int nbDims, unsigned int degree);
+    // Number of terms returned by getTerms()
+    static unsigned int getNbTerms(unsigned int maxDegree,
+                                   std::vector<unsigned int> const& respectiveMaxDegrees);
 
     // Complexity definition
     static unsigned int complexity(unsigned int degree, unsigned int nbUsedDimensions);
@@ -114,20 +168,22 @@ private:
     // tryFit() implementations
 
     // Trying to fit the polynomial to the points with GLPK
-    // - the first bool is set to true if a problem occured
+    // - the first bool is set to true if the call succeed and false if a problem occured
     // - the other values in the tuple are the actual return values
-    static std::tuple<bool,bool,double> tryFitGLPK(
+    static std::tuple<bool,bool,Fitness<Polynomial>> tryFitGLPK(
             Form<Polynomial>& form, unsigned int nbPoints,
             Models::ModelConstIterator<Polynomial> mBegin,
             Models::ModelConstIterator<Polynomial> mEnd,
-            unsigned int outputID, unsigned int dimInOutput);
+            unsigned int outputID, unsigned int dimInOutput,
+            std::vector<unsigned int> const& respectiveMaxDegrees);
 
     // Same thing with soplex
-    static std::tuple<bool,bool,double> tryFitSoplex(
+    static std::tuple<bool,bool,Fitness<Polynomial>> tryFitSoplex(
             Form<Polynomial>& form,
             Models::ModelConstIterator<Polynomial> mBegin,
             Models::ModelConstIterator<Polynomial> mEnd,
-            unsigned int outputID, unsigned int dimInOutput);
+            unsigned int outputID, unsigned int dimInOutput,
+            std::vector<unsigned int> const& respectiveMaxDegrees);
 
 };
 

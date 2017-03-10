@@ -50,16 +50,26 @@ public:
     }
 
     // Tries to fit the points with a form
-    // If it succeeds, params are stored within the form
     // The function returns whether is was a success
-    //   and (only if it succeeded) the fitness of the form that was found
-    //   (the lower the better)
-    static std::tuple<bool,double> tryFit(Form<ApproximatorType>& form, unsigned int nbPoints,
-                                          Models::ModelConstIterator<ApproximatorType> mBegin,
-                                          Models::ModelConstIterator<ApproximatorType> mEnd,
-                                          unsigned int outputID, unsigned int dimInOutput)
+    static bool tryFit(
+            Form<ApproximatorType>& form, unsigned int nbPoints,
+            Models::ModelConstIterator<ApproximatorType> mBegin,
+            Models::ModelConstIterator<ApproximatorType> mEnd,
+            unsigned int outputID, unsigned int dimInOutput)
     {
         return ApproximatorType::tryFit_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
+    }
+
+    // Refines a form so as to get the best fitness
+    // Params are stored within the form
+    // Returns the fitness of that form
+    static Fitness<ApproximatorType> refine(
+            Form<ApproximatorType>& form, unsigned int nbPoints,
+            Models::ModelConstIterator<ApproximatorType> mBegin,
+            Models::ModelConstIterator<ApproximatorType> mEnd,
+            unsigned int outputID, unsigned int dimInOutput)
+    {
+        return ApproximatorType::refine_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
     }
 
     static Form<ApproximatorType> fitOnePoint(double t, unsigned int nbDims)

@@ -18,7 +18,6 @@ private:
     unsigned int nbUsed;
     unsigned int totalNbDimensions;
     std::list<unsigned int> dimensionsIDs;
-    int latestAddedDimension = -1;
 
 public:
 
