@@ -21,13 +21,14 @@ template <>
 struct Form<Polynomial>
 {
     UsedDimensions usedDimensions;
+    UsedDimensions relevantDimensions;
     unsigned int complexity = 0;
     unsigned int degree = 0;
     std::vector<unsigned int> respectiveMaxDegrees;
     std::vector<double> params;
 
     Form() = default;
-    Form(UsedDimensions uD) : usedDimensions(uD) {}
+    Form(UsedDimensions uD) : usedDimensions(uD), relevantDimensions(uD) {}
 
     // Serialization
     template<typename Archive>
@@ -36,20 +37,11 @@ struct Form<Polynomial>
         (void) version; // Unused parameter
 
         archive & form.usedDimensions;
+        archive & form.relevantDimensions;
         archive & form.complexity;
         archive & form.degree;
         archive & form.respectiveMaxDegrees;
         archive & form.params;
-    }
-
-    // Display
-    friend std::ostream& operator<< (std::ostream& out, Form<Polynomial> const& form)
-    {
-        out << "Complexity " << form.complexity
-            << " (degree: " << form.degree << ")"
-            << " of dimensions " << form.usedDimensions;
-
-        return out;
     }
 };
 
@@ -61,16 +53,32 @@ struct Fitness<Polynomial>
     double slack;
 
     Fitness() = default;
-    Fitness(unsigned int nbTerms, double slack) : sumDegrees(nbTerms), slack(slack){}
+    Fitness(unsigned int nbTerms, double slackValue) : sumDegrees(nbTerms), slack(slackValue){}
 
-    // Relational operator
-    // a < b means b is a better fitness
+    // Relational operators
+    // a < b means b is a strictly better fitness
     friend bool operator<(Fitness<Polynomial> const& fitness0, Fitness<Polynomial> const& fitness1)
     {
         return (fitness0.sumDegrees > fitness1.sumDegrees)
                 || ((fitness0.sumDegrees == fitness1.sumDegrees)
                     && (fitness0.slack > fitness1.slack));
     }
+
+    friend bool operator>(Fitness<Polynomial> const& fitness0, Fitness<Polynomial> const& fitness1)
+    {
+        return operator<(fitness1, fitness0);
+    }
+
+    friend bool operator<=(Fitness<Polynomial> const& fitness0, Fitness<Polynomial> const& fitness1)
+    {
+        return !(fitness0 > fitness1);
+    }
+
+    friend bool operator>=(Fitness<Polynomial> const& fitness0, Fitness<Polynomial> const& fitness1)
+    {
+        return !(fitness0 < fitness1);
+    }
+
 
     // Serialization
     template<typename Archive>
@@ -110,6 +118,7 @@ private:
             unsigned int maxComplexity);
 
     // Tries to fit the points with a form
+    // Some information may be stored within the form params
     // The function returns whether is was a success
     static bool tryFit_implementation(
             Form<Polynomial>& form, unsigned int nbPoints,

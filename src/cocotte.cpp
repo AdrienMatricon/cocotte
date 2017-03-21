@@ -28,6 +28,23 @@ using Cocotte::Learner;
 
 vector<vector<unsigned int>> computeErrors(vector<vector<vector<double>>> const& estimations,
                                            vector<vector<vector<double>>> const& targets,
+                                           vector<vector<vector<double>>> const& targetsPrec);
+
+void dumpEstimates(string fileName,
+                   vector<string> inputNames,
+                   vector<vector<string>> outputNames,
+                   vector<vector<double>> const& x,
+                   vector<vector<vector<double>>> const& estimates,
+                   vector<vector<vector<double>>> const& actual = vector<vector<vector<double>>>(0),
+                   vector<vector<unsigned int>> const& modelIDs = vector<vector<unsigned int>>(0));
+
+
+
+
+
+
+vector<vector<unsigned int>> computeErrors(vector<vector<vector<double>>> const& estimations,
+                                           vector<vector<vector<double>>> const& targets,
                                            vector<vector<vector<double>>> const& targetsPrec)
 {
     vector<vector<unsigned int>> results;
@@ -61,8 +78,8 @@ void dumpEstimates(string fileName,
                    vector<vector<string>> outputNames,
                    vector<vector<double>> const& x,
                    vector<vector<vector<double>>> const& estimates,
-                   vector<vector<vector<double>>> const& actual = vector<vector<vector<double>>>(0),
-                   vector<vector<unsigned int>> const& modelIDs = vector<vector<unsigned int>>(0))
+                   vector<vector<vector<double>>> const& actual,
+                   vector<vector<unsigned int>> const& modelIDs)
 {
     ofstream outputFile(fileName);
     if (!outputFile.is_open())

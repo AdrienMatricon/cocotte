@@ -50,6 +50,7 @@ public:
     }
 
     // Tries to fit the points with a form
+    // Some information may be stored within the form params
     // The function returns whether is was a success
     static bool tryFit(
             Form<ApproximatorType>& form, unsigned int nbPoints,

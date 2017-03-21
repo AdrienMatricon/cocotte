@@ -465,7 +465,6 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         std::shared_ptr<Models::Model<ApproximatorType>> model1,
         bool markAsTemporary)
 {
-    using std::min;
     using std::max;
     using std::vector;
     using std::list;
@@ -493,8 +492,8 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         FormType const form0 = forms0[outputDim], form1 = forms1[outputDim];
         unsigned int const totalNbDimensions = form0.usedDimensions.getTotalNbDimensions();
 
-        //        UsedDimensions availableDimensions = UsedDimensions::allDimensions(totalNbDimensions);
-        UsedDimensions availableDimensions = form0.usedDimensions + form1.usedDimensions;
+//        UsedDimensions availableDimensions = UsedDimensions::allDimensions(totalNbDimensions);
+        UsedDimensions availableDimensions = form0.relevantDimensions + form1.relevantDimensions;
         unsigned int const nbUnusedDimensions = availableDimensions.getNbUnused();
         unsigned int const maxAllowedComplexity = form0.complexity + form1.complexity;
 
@@ -612,10 +611,18 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         for (auto& form : bestForms)
         {
             auto const fitness = ApproximatorType::refine(form, nbPoints, mBegin, mEnd, outputID, outputDim);
-            if (bestFitness < fitness)
+
+            if (fitness >= bestFitness)
             {
-                bestNewForm = form;
-                bestFitness = fitness;
+                if (fitness > bestFitness)
+                {
+                    bestNewForm = form;
+                    bestFitness = fitness;
+                }
+                else
+                {
+                    bestNewForm.relevantDimensions += form.usedDimensions;
+                }
             }
         }
 

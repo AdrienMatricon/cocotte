@@ -109,8 +109,8 @@ Distance<DistanceType::CLOSEST_DIM_X>::Distance(Cocotte::DataPoint const& lhs, C
 
     // We sort the dimensions'IDs by difference
     sort(smallestDifferences.begin(), smallestDifferences.end(),
-         [&](unsigned int lhs, unsigned int rhs){
-        return coordinateDifferences[lhs].value < coordinateDifferences[rhs].value;
+         [&](unsigned int left, unsigned int right){
+        return coordinateDifferences[left].value < coordinateDifferences[right].value;
     });
 }
 

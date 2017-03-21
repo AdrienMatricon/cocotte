@@ -175,7 +175,7 @@ list<list<FormType>> Polynomial::getFormsInComplexityRange_implementation(
 
 
 // Tries to fit the points with a form
-// If it succeeds, params are stored within the form
+// Some information may be stored within the form params
 // The function returns whether is was a success
 bool Polynomial::tryFit_implementation(
         Form<Polynomial>& form, unsigned int nbPoints,
@@ -216,6 +216,7 @@ tuple<bool, Fitness<Polynomial>> Polynomial::tryFitRefine(
 
     // We compute normalization coefficients and store them in form.params
     // We also compute the amplitude of the output and store it in form.params
+    if (!refineMode)
     {
         auto const usedInputDimIds = form.usedDimensions.getIds();
         unsigned int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
@@ -285,8 +286,21 @@ tuple<bool, Fitness<Polynomial>> Polynomial::tryFitRefine(
         return result;
     };
 
+    tuple<bool,Fitness<Polynomial>> result;
+    bool computedForCurrentResult = false;
     auto formCopy = form;
-    auto result = lambda(formCopy);
+    auto bestForm = form;
+
+    if (getNbTerms(degree, allowedDegrees) > nbPoints)
+    {
+        std::get<0>(result) = true;
+    }
+    else
+    {
+        computedForCurrentResult = true;
+        result = lambda(formCopy);
+        bestForm = formCopy;
+    }
 
     // When tryFit() is called, we only need to know if the form can fit the data
     if (!refineMode)
@@ -295,15 +309,8 @@ tuple<bool, Fitness<Polynomial>> Polynomial::tryFitRefine(
     }
 
     // Otherwise, we know it can and we refine it by trying to reduce the degree in each dimension
-    bool usingMaxDegree = false;
-    unsigned int const lastOne = nbUsedInputDims - 1;
     for (unsigned int usedInputDimID = 0; usedInputDimID < nbUsedInputDims; ++usedInputDimID)
     {
-        if ((usedInputDimID == lastOne) && !usingMaxDegree)
-        {
-            break;
-        }
-
         unsigned int lowerBound = 1;
         unsigned int upperBound = degree;
 
@@ -312,12 +319,25 @@ tuple<bool, Fitness<Polynomial>> Polynomial::tryFitRefine(
             unsigned int const middle = (upperBound + lowerBound)/2;
             allowedDegrees[usedInputDimID] = middle;
 
-            formCopy = form;
-            auto temp = lambda(formCopy);
+            tuple<bool,Fitness<Polynomial>> temp;
+            bool computedForTemp = false;
+
+            if (getNbTerms(degree, allowedDegrees) > nbPoints)
+            {
+                std::get<0>(temp) = true;
+            }
+            else
+            {
+                formCopy = form;
+                computedForTemp = true;
+                temp = lambda(formCopy);
+            }
 
             if (std::get<0>(temp))
             {
+                computedForCurrentResult = computedForTemp;
                 result = temp;
+                bestForm = formCopy;
                 upperBound = middle;
             }
             else
@@ -327,14 +347,15 @@ tuple<bool, Fitness<Polynomial>> Polynomial::tryFitRefine(
         }
 
         allowedDegrees[usedInputDimID] = upperBound;
-        if (upperBound == degree)
-        {
-            usingMaxDegree = true;
-        }
     }
 
     // Then we update the form
-    form = formCopy;
+    form = bestForm;
+    if (!computedForCurrentResult)
+    {
+        result = lambda(form);
+    }
+
     form.respectiveMaxDegrees = allowedDegrees;
 
     return result;
