@@ -724,7 +724,7 @@ int main(int argc, char *argv[])
                 if (cocotteDumpFile != "")
                 {
                     cout << "    Dumping models..."; cout.flush();
-                    learner.dumpModels(cocotteDumpFile);
+                    learner.dumpModels(std::to_string(batchID) + "_" + cocotteDumpFile);
                     cout << " done." << endl;
                 }
 

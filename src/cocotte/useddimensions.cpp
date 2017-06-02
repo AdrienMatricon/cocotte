@@ -192,84 +192,86 @@ list<UsedDimensions> UsedDimensions::getCombinationsWithKUnused(unsigned int d, 
 
 
 // Operators
+
+
+// Union
 UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
 {
+    list<unsigned int> newDimensionsIDs;
+
+    // We iterate over both lists to find common dimension IDs
     auto dIter0 = dimensionsIDs.begin(),
             dIter1 = otherDimensions.dimensionsIDs.begin();
-    auto const dEnd1 = otherDimensions.dimensionsIDs.end();
+    auto const dEnd0 = dimensionsIDs.end(),
+            dEnd1 = otherDimensions.dimensionsIDs.end();
 
-    // If one of the list is empty, the union is equal to the other
-    if (dIter0 == dimensionsIDs.end())
+    // If one of the list is empty, the intersection is empty
+    while ((dIter0 != dEnd0) && (dIter1 != dEnd1))
     {
-        dimensionsIDs = otherDimensions.dimensionsIDs;
-        nbUsed = otherDimensions.nbUsed;
-        return *this;
-    }
-    else if (dIter1 == dEnd1)
-    {
-        return *this;
-    }
-
-    // Otherwise, we iterate through both lists
-    auto dim0 = *dIter0, dim1 = *dIter1;
-
-    while (true)
-    {
-        if (dim0 > dim1)
+        auto const dim0 = *dIter0, dim1 = *dIter1;
+        if (dim0 < dim1)
         {
-            // We iterate through the other list until we reach or pass dim0
-            if(++dIter1 == dEnd1)
-            {
-                return *this;
-            }
-            dim1 = *dIter1;
+            newDimensionsIDs.push_back(dim0);
+            ++dIter0;
         }
-        else if (dim0 < dim1)
+        else if (dim0 > dim1)
         {
-            // If we passed dim0, we increment the iterator and to see if dim1 was between both values of dim0
-            // If it is the case, dim1 is not in dimensionsIds and we insert it
-            if (++dIter0 == dimensionsIDs.end())
-            {
-                break;
-            }
-
-            dim0 = *dIter0;
-            if (dim0 > dim1)
-            {
-                dimensionsIDs.insert(dIter0, dim1);
-                ++nbUsed;
-                if(++dIter1 == dEnd1)
-                {
-                    return *this;
-                }
-
-                dim1 = *dIter1;
-                --dIter0;
-                dim0 = *dIter0;
-            }
+            newDimensionsIDs.push_back(dim1);
+            ++dIter1;
         }
         else
         {
-            // If we simply reached dim0, we increment both iterators
-            if(++dIter1 == dEnd1)
-            {
-                return *this;
-            }
-
-            if (++dIter0 == dimensionsIDs.end())
-            {
-                break;
-            }
-
-            dim0 = *dIter0;
-            dim1 = *dIter1;
+            newDimensionsIDs.push_back(dim0);
+            ++dIter0; ++dIter1;
         }
     }
 
-    // We append the remaining dimensions to dimensionsIds
-    dimensionsIDs.insert(dIter0, dIter1, dEnd1);
-    nbUsed = dimensionsIDs.size();
+    if (dIter0 != dEnd0)
+    {
+        newDimensionsIDs.insert(newDimensionsIDs.end(), dIter0, dEnd0);
+    }
 
+    if (dIter1 != dEnd1)
+    {
+        newDimensionsIDs.insert(newDimensionsIDs.end(), dIter1, dEnd1);
+    }
+
+    *this = UsedDimensions(totalNbDimensions, newDimensionsIDs);
+    return *this;
+}
+
+
+// Intersection
+UsedDimensions const& UsedDimensions::operator^=(UsedDimensions otherDimensions)
+{
+    list<unsigned int> newDimensionsIDs;
+
+    // We iterate over both lists to find common dimension IDs
+    auto dIter0 = dimensionsIDs.begin(),
+            dIter1 = otherDimensions.dimensionsIDs.begin();
+    auto const dEnd0 = dimensionsIDs.end(),
+            dEnd1 = otherDimensions.dimensionsIDs.end();
+
+    // If one of the list is empty, the intersection is empty
+    while ((dIter0 != dEnd0) && (dIter1 != dEnd1))
+    {
+        auto const dim0 = *dIter0, dim1 = *dIter1;
+        if (dim0 < dim1)
+        {
+            ++dIter0;
+        }
+        else if (dim0 > dim1)
+        {
+            ++dIter1;
+        }
+        else
+        {
+            newDimensionsIDs.push_back(dim0);
+            ++dIter0; ++dIter1;
+        }
+    }
+
+    *this = UsedDimensions(totalNbDimensions, newDimensionsIDs);
     return *this;
 }
 

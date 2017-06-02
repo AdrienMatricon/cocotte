@@ -54,8 +54,8 @@ public:
     // The function returns whether is was a success
     static bool tryFit(
             Form<ApproximatorType>& form, unsigned int nbPoints,
-            Models::ModelConstIterator<ApproximatorType> mBegin,
-            Models::ModelConstIterator<ApproximatorType> mEnd,
+            Models::ModelConstIterator<ApproximatorType> const& mBegin,
+            Models::ModelConstIterator<ApproximatorType> const& mEnd,
             unsigned int outputID, unsigned int dimInOutput)
     {
         return ApproximatorType::tryFit_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
@@ -66,8 +66,8 @@ public:
     // Returns the fitness of that form
     static Fitness<ApproximatorType> refine(
             Form<ApproximatorType>& form, unsigned int nbPoints,
-            Models::ModelConstIterator<ApproximatorType> mBegin,
-            Models::ModelConstIterator<ApproximatorType> mEnd,
+            Models::ModelConstIterator<ApproximatorType> const& mBegin,
+            Models::ModelConstIterator<ApproximatorType> const& mEnd,
             unsigned int outputID, unsigned int dimInOutput)
     {
         return ApproximatorType::refine_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
@@ -85,7 +85,7 @@ public:
     }
 
     // Returns the form as a readable string
-    static std::string formToString(Form<ApproximatorType> const& form, std::vector<std::string> inputNames)
+    static std::string formToString(Form<ApproximatorType> const& form, std::vector<std::string>const&  inputNames)
     {
         return ApproximatorType::formToString_implementation(form, inputNames);
     }

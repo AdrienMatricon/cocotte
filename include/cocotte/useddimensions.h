@@ -43,13 +43,26 @@ public:
     // Same but with combinations of d-k used dimensions and k unused one
     std::list<UsedDimensions> getCombinationsWithKUnused(unsigned int d, unsigned int k) const;
 
+
     // Operators
+
+    // Union
     UsedDimensions const& operator+=(UsedDimensions otherDimensions);
+
+    // Intersection
+    UsedDimensions const& operator^=(UsedDimensions otherDimensions);
 
     friend UsedDimensions operator+(UsedDimensions const& s0, UsedDimensions const& s1)
     {
         UsedDimensions result = s0;
         result += s1;
+        return result;
+    }
+
+    friend UsedDimensions operator^(UsedDimensions const& s0, UsedDimensions const& s1)
+    {
+        UsedDimensions result = s0;
+        result ^= s1;
         return result;
     }
 

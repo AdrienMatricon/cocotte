@@ -22,7 +22,8 @@ namespace Cocotte {
 
 // Constructor
 template <typename ApproximatorType>
-ModelList<ApproximatorType>::ModelList(unsigned int oID, unsigned int nId, unsigned int nOd): outputID(oID), nbInputDims(nId), nbOutputDims(nOd)
+ModelList<ApproximatorType>::ModelList(unsigned int oID, unsigned int nId, unsigned int nOd):
+    outputID(oID), nbInputDims(nId), nbOutputDims(nOd)
 {}
 
 
@@ -389,7 +390,9 @@ std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vecto
 
 
 template <typename ApproximatorType>
-std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vector<std::vector<double>> const& points, std::vector<unsigned int> *modelIDs)
+std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(
+        std::vector<std::vector<double>> const& points,
+        std::vector<unsigned int> *modelIDs)
 {
     return predict(points, true, modelIDs);
 }
@@ -397,7 +400,9 @@ std::vector<std::vector<double>> ModelList<ApproximatorType>::predict(std::vecto
 
 // Returns a string that details the forms in the list
 template <typename ApproximatorType>
-std::string ModelList<ApproximatorType>::toString(std::vector<std::string> inputNames, std::vector<std::string> outputNames) const
+std::string ModelList<ApproximatorType>::toString(
+        std::vector<std::string> inputNames,
+        std::vector<std::string> outputNames) const
 {
     using std::stringstream;
     using std::endl;
@@ -493,7 +498,12 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         unsigned int const totalNbDimensions = form0.usedDimensions.getTotalNbDimensions();
 
 //        UsedDimensions availableDimensions = UsedDimensions::allDimensions(totalNbDimensions);
-        UsedDimensions availableDimensions = form0.relevantDimensions + form1.relevantDimensions;
+//        UsedDimensions availableDimensions = form0.relevantDimensions + form1.relevantDimensions;
+        UsedDimensions availableDimensions = form0.neededDimensions + form1.neededDimensions;
+
+        // TODO: make use of form0.relevantDimensions and form1.relevantDimensions,
+        //       which give us information on the dimensions that may be useful
+
         unsigned int const nbUnusedDimensions = availableDimensions.getNbUnused();
         unsigned int const maxAllowedComplexity = form0.complexity + form1.complexity;
 
@@ -505,10 +515,10 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         //   and use a binary search to get the lowest complexity one
         // We don't immediately test the highest complexity
         //   because the computational cost can be prohibitive
-        for (unsigned int nbAdditionalDimensions = 0; nbAdditionalDimensions <= nbUnusedDimensions; ++nbAdditionalDimensions)
+        for (unsigned int nbAdditionalDimensions = 0;
+             nbAdditionalDimensions <= nbUnusedDimensions; ++nbAdditionalDimensions)
         {
-            unsigned int lowerBound = (nbAdditionalDimensions == 0) ?
-                        max(form0.complexity, form1.complexity) : 1;
+            unsigned int lowerBound = max(form0.complexity, form1.complexity);
             unsigned int upperBound = maxAllowedComplexity;
 
             // Instead of trying one complexity in [lowerBound, upperBound], we will consider a range,
@@ -534,8 +544,8 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                     }
                     else
                     {
-                        middleComplexityRangeMin =
-                                ApproximatorType::getComplexityRangeLowerBound(totalNbDimensions, middleComplexityRangeMax);
+                        middleComplexityRangeMin = ApproximatorType::getComplexityRangeLowerBound(
+                                    totalNbDimensions, middleComplexityRangeMax);
                     }
                 }
 
@@ -561,7 +571,8 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                         for (auto& form : someForms)
                         {
                             // For each form, we try to fit all points
-                            bool const fitResult = ApproximatorType::tryFit(form, nbPoints, mBegin, mEnd, outputID, outputDim);
+                            bool const fitResult = ApproximatorType::tryFit(
+                                        form, nbPoints, mBegin, mEnd, outputID, outputDim);
                             if (fitResult)
                             {
                                 if (!success)
@@ -621,7 +632,8 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                 }
                 else
                 {
-                    bestNewForm.relevantDimensions += form.usedDimensions;
+                    bestNewForm.neededDimensions ^= form.usedDimensions;    //intersection
+                    bestNewForm.relevantDimensions += form.usedDimensions;  // union
                 }
             }
         }
@@ -687,14 +699,17 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
     // Some definitions first
     bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
 
-    set<shared_ptr<ModelType>> candidateModels;                                     // candidate models for the merging
-    unordered_set<shared_ptr<ModelType>> unavailable;                               // models which have already been merged, or that have been rolled back
+    // Candidate models for the merging
+    set<shared_ptr<ModelType>> candidateModels;
+    // Models which have already been merged, or that have been rolled back
+    unordered_set<shared_ptr<ModelType>> unavailable;
 
-    deque<pair<Models::ModelDistance,shared_ptr<ModelType>>> independentMergesInnerDistances;      // nodes in independently merged models
-    // and the distances between their children
+    // Nodes in independently merged models and the distances between their children
+    deque<pair<Models::ModelDistance,shared_ptr<ModelType>>> independentMergesInnerDistances;
+    // Candidate pairs of models, and the distances between them
     priority_queue<pair<Models::ModelDistance, ModelPair>,
             vector<pair<Models::ModelDistance, ModelPair>>,
-            HasGreaterDistance<ModelPair>> candidateDistances;                  // candidate pairs of models, and the distances between them
+            HasGreaterDistance<ModelPair>> candidateDistances;
 
 
     // We determine all candidate models for the merging phase,
@@ -765,8 +780,12 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
             {
                 for (auto aIt = atomicModels.begin(), aEnd = atomicModels.end(); aIt != aEnd; ++aIt)
                 {
-                    candidateDistances.push(make_pair(Models::getDistance<ApproximatorType>(*cIt, *aIt, outputID),
-                                                      make_pair(*cIt, *aIt)));
+                    candidateDistances.push(
+                                make_pair(
+                                    Models::getDistance<ApproximatorType>(*cIt, *aIt, outputID),
+                                    make_pair(*cIt, *aIt)
+                                    )
+                                );
                 }
             }
 
@@ -787,8 +806,12 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                 auto otherIt = cIt; ++otherIt;
                 for (; otherIt != cEnd; ++otherIt)
                 {
-                    candidateDistances.push(make_pair(Models::getDistance<ApproximatorType>(*cIt, *otherIt, outputID),
-                                                      make_pair(*cIt, *otherIt)));
+                    candidateDistances.push(
+                                make_pair(
+                                    Models::getDistance<ApproximatorType>(*cIt, *otherIt, outputID),
+                                    make_pair(*cIt, *otherIt)
+                                    )
+                                );
                 }
             }
         }
@@ -845,8 +868,12 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                     // The model is added as a candidate model, and distances are added in candidateDistances
                     for (auto const& model : candidateModels)
                     {
-                        candidateDistances.push(make_pair(Models::getDistance<ApproximatorType>(mergedModel, model, outputID),
-                                                          make_pair(mergedModel, model)));
+                        candidateDistances.push(
+                                    make_pair(
+                                        Models::getDistance<ApproximatorType>(mergedModel, model, outputID),
+                                        make_pair(mergedModel, model)
+                                        )
+                                    );
                     }
 
                     candidateModels.insert(mergedModel);
@@ -890,7 +917,8 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                 if (!independentMergesInnerDistances.empty())
                 {
                     minDistIndependent = independentMergesInnerDistances.front().first;
-                    supDistIndependent = Models::ModelDistance::getBiggerDistanceThan(independentMergesInnerDistances.back().first);
+                    supDistIndependent =
+                            Models::ModelDistance::getBiggerDistanceThan(independentMergesInnerDistances.back().first);
                 }
             }
         }
@@ -925,8 +953,12 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                         // The model is added as a candidate model, and distances are added in candidateDistances
                         for (auto const& model : candidateModels)
                         {
-                            candidateDistances.push(make_pair(Models::getDistance<ApproximatorType>(newModel, model, outputID),
-                                                              make_pair(newModel, model)));
+                            candidateDistances.push(
+                                        make_pair(
+                                            Models::getDistance<ApproximatorType>(newModel, model, outputID),
+                                            make_pair(newModel, model)
+                                            )
+                                        );
                         }
 
                         candidateModels.insert(newModel);
