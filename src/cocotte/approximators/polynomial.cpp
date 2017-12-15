@@ -88,18 +88,23 @@ unsigned int Polynomial::getComplexityRangeLowerBound_implementation(
 
 
 // Returns all forms of complexity in [minComplexity, maxComplexity],
-// using exactly nbNewDimensions dimensions not in formerlyUsedDimensions
+// using any number of dimensions from formerlyUsedDimensions
+// using exactly nbNewDimensions dimensions from otherDimensions and not in formerlyUsedDimensions
 // Those forms are returned as a lists of sublists of forms, such that:
 //   - forms in the same sublist have the same complexity
 //   - sublists are sorted by (non strictly) increasing complexity
 list<list<FormType>> Polynomial::getFormsInComplexityRange_implementation(
         UsedDimensions const& formerlyUsedDimensions,
+        UsedDimensions const& otherDimensions,
         unsigned int nbNewDimensions,
         unsigned int minComplexity,
         unsigned int maxComplexity)
 {
-    // Trivial case
-    if (minComplexity > maxComplexity)
+    UsedDimensions newDimensions = otherDimensions ^ formerlyUsedDimensions.complement();
+
+    // Trivial cases
+    if ( (minComplexity > maxComplexity)
+         || (newDimensions.getNbUsed() < nbNewDimensions) )
     {
         return {};
     }
@@ -148,7 +153,9 @@ list<list<FormType>> Polynomial::getFormsInComplexityRange_implementation(
             // We compute all combinations of nbNewDimensions newly used dimensions
             // and (d - nbNewDimensions) formerly used ones
             list<UsedDimensions> const dimensionCombinations
-                    = formerlyUsedDimensions.getCombinationsWithKUnused(d, nbNewDimensions);
+                    = UsedDimensions::getMixedCombinations(
+                        formerlyUsedDimensions, d - nbNewDimensions,
+                        newDimensions, nbNewDimensions);
 
             // We compute all corresponding forms and create a sublist to store them
             list<FormType> newForms;
@@ -838,8 +845,8 @@ tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitGLPK(
     //    - 1 param per term (weight_j)
     //    - 1 param per point (xi_i) for the normalized distance to the approximation
     //    - 1 param (alpha) for the shared part of the xi_i which is due to the imprecision
-    //      on the output value
-    //    - 1 param per xi_i and per input dimension (beta_ik)
+    //      on the output values
+    //    - 1 param per xi_i (i.e. per point) and per input dimension (beta_ik)
     //      for the part of those xi_i which is due to the imprecision on the input values
     //    - In terms of priorities,
     //      we want to minimize all xi_i first, then all beta_ik
@@ -869,9 +876,9 @@ tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitGLPK(
     // Optimization parameters declaration
     {
         // Coefficients in what we minimize
-        double xiCoeff = 100./nbPoints;
-        double alphaCoeff = 0.;
-        double betaCoeff = 1./(nbPoints * nbUsedInputDims);
+        double xiCoeff = 0.;
+        double alphaCoeff = 0.5;
+        double betaCoeff = 1.;
 
         if (mode == FitMode::WeightConcentration)
         {
@@ -1223,8 +1230,8 @@ tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitGLPK(
     }
 
     // We retrieve the solution
-    vector<double> solution(nbOptimParameters + 1);
-    for (unsigned int ID = 1; ID <= nbOptimParameters; ++ID)
+    vector<double> solution(firstWeightParamID + nbOptimParameters);
+    for (unsigned int ID = firstWeightParamID; ID < (firstWeightParamID + nbOptimParameters); ++ID)
     {
         solution[ID] = glp_get_col_prim(lp, ID);
     }
@@ -1344,8 +1351,8 @@ tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitSoplex(
     //    - 1 param per term (weight_j)
     //    - 1 param per point (xi_i) for the normalized distance to the approximation
     //    - 1 param (alpha) for the shared part of the xi_i which is due to the imprecision
-    //      on the output value
-    //    - 1 param per xi_i and per input dimension (beta_ik)
+    //      on the output values
+    //    - 1 param per xi_i (i.e. per point) and per input dimension (beta_ik)
     //      for the part of those xi_i which is due to the imprecision on the input values
     //    - In terms of priorities,
     //      we want to minimize all xi_i first, then all beta_ik
@@ -1369,9 +1376,9 @@ tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitSoplex(
     // Optimization parameters declaration
     {
         // Coefficients in what we minimize
-        double xiCoeff = 100./nbPoints;
-        double alphaCoeff = 0.;
-        double betaCoeff = 1./(nbPoints * nbUsedInputDims);
+        double xiCoeff = 0.;
+        double alphaCoeff = 0.5;
+        double betaCoeff = 1.;
 
         if (mode == FitMode::WeightConcentration)
         {
@@ -1629,8 +1636,8 @@ tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitSoplex(
     // We retrieve the solution
     soplex::DVector primal(nbOptimParameters);
     problem.getPrimalReal(primal);
-    vector<double> solution(nbOptimParameters + 1);
-    for (unsigned int ID = 0; ID < nbOptimParameters; ++ID)
+    vector<double> solution(firstWeightParamID + nbOptimParameters);
+    for (unsigned int ID = firstWeightParamID; ID < (firstWeightParamID + nbOptimParameters); ++ID)
     {
         solution[ID] = primal[ID];
     }
@@ -1677,7 +1684,8 @@ tuple<bool,bool,Fitness<Polynomial>> Polynomial::tryFitSoplex(
             }
 
             // Now let's check that the inequality is verified
-            if (normalizedOutputPrec * solution[firstXiParamID + i] > rhs)
+            auto lhs = normalizedOutputPrec * solution[firstXiParamID + i];
+            if (lhs > rhs)
             {
                 return make_tuple(true, false, Fitness<Polynomial>{});  // (same as above)
             }

@@ -40,8 +40,10 @@ public:
 
     // Returns a list of combinations of d used dimensions
     std::list<UsedDimensions> getCombinations(unsigned int d) const;
-    // Same but with combinations of d-k used dimensions and k unused one
-    std::list<UsedDimensions> getCombinationsWithKUnused(unsigned int d, unsigned int k) const;
+
+    // Same but with combinations of d0 used dimensions from ud0 and d1 from ud1
+    static std::list<UsedDimensions> getMixedCombinations(
+            UsedDimensions const& ud0, unsigned int d0, UsedDimensions const& ud1, unsigned int d1);
 
 
     // Operators

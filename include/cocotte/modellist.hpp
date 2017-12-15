@@ -497,14 +497,14 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         FormType const form0 = forms0[outputDim], form1 = forms1[outputDim];
         unsigned int const totalNbDimensions = form0.usedDimensions.getTotalNbDimensions();
 
-//        UsedDimensions availableDimensions = UsedDimensions::allDimensions(totalNbDimensions);
-//        UsedDimensions availableDimensions = form0.relevantDimensions + form1.relevantDimensions;
-        UsedDimensions availableDimensions = form0.neededDimensions + form1.neededDimensions;
+//        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
+        UsedDimensions formerlyNeededDimensions = form0.neededDimensions + form1.neededDimensions;
+        UsedDimensions relevantDimensions = form0.relevantDimensions + form1.relevantDimensions;
+        UsedDimensions irrelevantDimensions = relevantDimensions.complement();
+        UsedDimensions relevantOtherDimensions = relevantDimensions ^ formerlyNeededDimensions.complement();
 
-        // TODO: make use of form0.relevantDimensions and form1.relevantDimensions,
-        //       which give us information on the dimensions that may be useful
-
-        unsigned int const nbUnusedDimensions = availableDimensions.getNbUnused();
+        unsigned int const nbRelevantOtherDimensions = relevantOtherDimensions.getNbUsed();
+        unsigned int const nbUnusedDimensions = formerlyNeededDimensions.getNbUnused();
         unsigned int const maxAllowedComplexity = form0.complexity + form1.complexity;
 
         // The lowest complexity form which has been found
@@ -536,7 +536,17 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                 }
                 else
                 {
-                    middleComplexityRangeMax = (lowerBound + upperBound) / 2;
+                    if (bestComplexity < maxAllowedComplexity)
+                    {
+                        // At least one success, we go into the binary search normally
+                        middleComplexityRangeMax = (lowerBound + upperBound) / 2;
+                    }
+                    else
+                    {
+                        // We don't take (lowerBound + upperBound) / 2
+                        //  because higher complexities cost more to try
+                        middleComplexityRangeMax = (3*lowerBound + upperBound) / 4;
+                    }
 
                     if (lowerBound == 1)
                     {
@@ -547,14 +557,31 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                         middleComplexityRangeMin = ApproximatorType::getComplexityRangeLowerBound(
                                     totalNbDimensions, middleComplexityRangeMax);
                     }
+
                 }
 
                 // We look for possible forms with complexity in [middleComplexityRangeMin, middleComplexityRangeMax]
-                //   which use exactly nbAdditionalDimensions dimensions not in availableDimensions
-                auto possibleForms = ApproximatorType::getFormsInComplexityRange(availableDimensions,
-                                                                                 nbAdditionalDimensions,
-                                                                                 middleComplexityRangeMin,
-                                                                                 middleComplexityRangeMax);
+                //   which use exactly nbAdditionalDimensions dimensions not in formerlyNeededDimensions,
+                //   with a priority on additional dimensions from relevantOtherDimensions
+                list<list<FormType>> possibleForms;
+                if (nbAdditionalDimensions <= nbRelevantOtherDimensions)
+                {
+                    possibleForms = ApproximatorType::getFormsInComplexityRange(
+                                formerlyNeededDimensions,
+                                relevantOtherDimensions,
+                                nbAdditionalDimensions,
+                                middleComplexityRangeMin,
+                                middleComplexityRangeMax);
+                }
+                else
+                {
+                    possibleForms = ApproximatorType::getFormsInComplexityRange(
+                                relevantDimensions,
+                                irrelevantDimensions,
+                                nbAdditionalDimensions - nbRelevantOtherDimensions,
+                                middleComplexityRangeMin,
+                                middleComplexityRangeMax);
+                }
 
                 bool success = false;
 

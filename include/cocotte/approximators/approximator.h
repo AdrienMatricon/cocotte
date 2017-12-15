@@ -35,18 +35,20 @@ public:
     }
 
     // Returns all forms of complexity in [minComplexity, maxComplexity],
-    // using exactly nbNewDimensions dimensions not in formerlyUsedDimensions
+    // using any number of dimensions from formerlyUsedDimensions
+    // using exactly nbNewDimensions dimensions from otherDimensions and not in formerlyUsedDimensions
     // Those forms are returned as a lists of sublists of forms, such that:
     //   - forms in the same sublist have the same complexity
     //   - sublists are sorted by (non strictly) increasing complexity
     static std::list<std::list<Form<ApproximatorType>>> getFormsInComplexityRange(
             UsedDimensions const& formerlyUsedDimensions,
+            UsedDimensions const& otherDimensions,
             unsigned int nbNewDimensions,
             unsigned int minComplexity,
             unsigned int maxComplexity)
     {
         return ApproximatorType::getFormsInComplexityRange_implementation(
-                    formerlyUsedDimensions, nbNewDimensions, minComplexity, maxComplexity);
+                    formerlyUsedDimensions, otherDimensions, nbNewDimensions, minComplexity, maxComplexity);
     }
 
     // Tries to fit the points with a form

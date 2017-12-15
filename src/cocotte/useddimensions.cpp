@@ -156,34 +156,40 @@ list<UsedDimensions> UsedDimensions::getCombinations(unsigned int d) const
 }
 
 
-// Same but with combinations of d-k used dimensions and k unused one
-list<UsedDimensions> UsedDimensions::getCombinationsWithKUnused(unsigned int d, unsigned int k) const
+
+// Same but with combinations of d0 used dimensions from ud0 and d1 from ud1
+list<UsedDimensions> UsedDimensions::getMixedCombinations(
+        UsedDimensions const& ud0, unsigned int d0, UsedDimensions const& ud1, unsigned int d1)
 {
-    if (k < 1)
-    {
-        return getCombinations(d);
-    }
-
-    if (k == d)
-    {
-        return complement().getCombinations(k);
-    }
-
-    if ( (d > nbUsed + k) || (d > totalNbDimensions) )
+    // Trivial cases
+    if ( (ud0.getNbUsed() < d0)
+         || (ud1.getNbUsed() < d1)
+         || ((ud0 + ud1).getNbUsed() < (d0 + d1)) )
     {
         // No combination works
         return list<UsedDimensions>{};
     }
 
-    auto const partialResult = getCombinations(d-k);
-    auto const newDimensionsCombinations = complement().getCombinations(k);
+    if (d0 < 1)
+    {
+       return ud1.getCombinations(d1);
+    }
+
+    if (d1 < 1)
+    {
+        return ud0.getCombinations(d0);
+    }
+
+    // Normal case
+    auto const combinations0 = ud0.getCombinations(d0);
+    auto const combinations1 = ud1.getCombinations(d1);
 
     list<UsedDimensions> result;
 
-    for (auto const& usedDims : partialResult)
-        for (auto& newDims : newDimensionsCombinations)
+    for (auto const& dims0 : combinations0)
+        for (auto const& dims1 : combinations1)
     {
-        result.push_back(usedDims + newDims);
+        result.push_back(dims0 + dims1);
     }
 
     return result;
