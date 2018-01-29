@@ -63,18 +63,6 @@ public:
         return ApproximatorType::tryFit_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
     }
 
-    // Refines a form so as to get the best fitness
-    // Params are stored within the form
-    // Returns the fitness of that form
-    static Fitness<ApproximatorType> refine(
-            Form<ApproximatorType>& form, unsigned int nbPoints,
-            Models::ModelConstIterator<ApproximatorType> const& mBegin,
-            Models::ModelConstIterator<ApproximatorType> const& mEnd,
-            unsigned int outputID, unsigned int dimInOutput)
-    {
-        return ApproximatorType::refine_implementation(form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
-    }
-
     static Form<ApproximatorType> fitOnePoint(double t, unsigned int nbDims)
     {
         return ApproximatorType::fitOnePoint_implementation(t, nbDims);

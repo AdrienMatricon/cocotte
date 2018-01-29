@@ -9,9 +9,6 @@ namespace Approximators {
 template <typename ApproximatorType>
 struct Form{};
 
-template <typename ApproximatorType>
-struct Fitness{};
-
 
 
 }}

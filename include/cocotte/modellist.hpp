@@ -644,25 +644,11 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
 
         auto bestNewForm = bestForms.front();
         bestForms.pop_front();
-        auto bestFitness = ApproximatorType::refine(bestNewForm, nbPoints, mBegin, mEnd, outputID, outputDim);
 
         for (auto& form : bestForms)
         {
-            auto const fitness = ApproximatorType::refine(form, nbPoints, mBegin, mEnd, outputID, outputDim);
-
-            if (fitness >= bestFitness)
-            {
-                if (fitness > bestFitness)
-                {
-                    bestNewForm = form;
-                    bestFitness = fitness;
-                }
-                else
-                {
-                    bestNewForm.neededDimensions ^= form.usedDimensions;    //intersection
-                    bestNewForm.relevantDimensions += form.usedDimensions;  // union
-                }
-            }
+            bestNewForm.neededDimensions ^= form.usedDimensions;    //intersection
+            bestNewForm.relevantDimensions += form.usedDimensions;  // union
         }
 
         newForms.push_back(bestNewForm);
