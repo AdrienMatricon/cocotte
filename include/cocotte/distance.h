@@ -51,6 +51,18 @@ public:
     friend bool operator<(Distance<DistanceType::L_1_XT> const& lhs,
                           Distance<DistanceType::L_1_XT> const& rhs);
 
+    friend bool operator>(Distance<DistanceType::L_1_XT> const& lhs,
+                          Distance<DistanceType::L_1_XT> const& rhs)
+    {return rhs < lhs;}
+
+    friend bool operator<=(Distance<DistanceType::L_1_XT> const& lhs,
+                          Distance<DistanceType::L_1_XT> const& rhs)
+    {return !(rhs < lhs);}
+
+    friend bool operator>=(Distance<DistanceType::L_1_XT> const& lhs,
+                          Distance<DistanceType::L_1_XT> const& rhs)
+    {return !(lhs < rhs);}
+
     // Returns a distance X such that smaller < X
     static Distance<DistanceType::L_1_XT> getBiggerDistanceThan(Distance const& smaller);
 };
@@ -79,6 +91,18 @@ public:
     // Relational operator
     friend bool operator<(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
                           Distance<DistanceType::L_2_SQUARED_XT> const& rhs);
+
+    friend bool operator>(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
+                          Distance<DistanceType::L_2_SQUARED_XT> const& rhs)
+    {return rhs < lhs;}
+
+    friend bool operator<=(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
+                          Distance<DistanceType::L_2_SQUARED_XT> const& rhs)
+    {return !(rhs < lhs);}
+
+    friend bool operator>=(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
+                          Distance<DistanceType::L_2_SQUARED_XT> const& rhs)
+    {return !(lhs < rhs);}
 
     // Returns a distance X such that smaller < X
     static Distance<DistanceType::L_2_SQUARED_XT> getBiggerDistanceThan(Distance const& smaller);
@@ -109,6 +133,18 @@ public:
     // Relational operator
     friend bool operator<(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
                           Distance<DistanceType::CLOSEST_DIM_X> const& rhs);
+
+    friend bool operator>(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
+                          Distance<DistanceType::CLOSEST_DIM_X> const& rhs)
+    {return rhs < lhs;}
+
+    friend bool operator<=(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
+                          Distance<DistanceType::CLOSEST_DIM_X> const& rhs)
+    {return !(rhs < lhs);}
+
+    friend bool operator>=(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
+                          Distance<DistanceType::CLOSEST_DIM_X> const& rhs)
+    {return !(lhs < rhs);}
 
     // Returns a distance X such that smaller < X
     static Distance<DistanceType::CLOSEST_DIM_X> getBiggerDistanceThan(Distance const& smaller);

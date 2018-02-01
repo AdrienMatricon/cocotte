@@ -11,12 +11,15 @@ namespace Models {
 
 
 template<typename ApproximatorType>
-Node<ApproximatorType>::Node(std::shared_ptr<Model<ApproximatorType>> m0,
-                             std::shared_ptr<Model<ApproximatorType>> m1,
+Node<ApproximatorType>::Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> mod,
                              bool temp)
-    : model0(m0), model1(m1), temporary(temp)
+    : models(mod), temporary(temp)
 {
-    nbPoints = model0->getNbPoints() + model1->getNbPoints();
+    nbPoints = 0;
+    for (auto const& m : mod)
+    {
+        nbPoints += m->getNbPoints();
+    }
 }
 
 
@@ -53,88 +56,115 @@ ModelDistance Node<ApproximatorType>::getBiggestInnerDistance(unsigned int outpu
 
     if (!alreadyComputed)
     {
-        // We compute the biggest inner distance for all nodes below this one
-        vector<shared_ptr<ModelType>> children = {model0, model1};
-        for (auto& child : children)
+        // An element of the outer list corresponds to one depth of the tree
+        // The inner list contains the unexplored elements of a given depth
+        // (this is a depth-first exploration of the tree)
+        list<vector<shared_ptr<ModelType>>> toProcess{models};
+
+        while (!toProcess.empty())
         {
-            if (child->isLeaf())
+            auto current = toProcess.back().back();
+
+            if (!current->isLeaf())
             {
-                continue;
+                auto const asNode = static_pointer_cast<NodeType>(current);
+                if (!asNode->alreadyComputed)
+                {
+                    toProcess.push_back(asNode->getModels());
+                    continue;
+                }
             }
 
-            auto asNode = static_pointer_cast<NodeType>(child);
-            if (asNode->alreadyComputed)
+            toProcess.back().pop_back();
+
+            while (toProcess.back().empty())
             {
-                continue;
-            }
-
-
-            list<shared_ptr<NodeType>> predecessors;
-            predecessors.push_back(asNode);
-
-            auto current = asNode->model0;
-
-            while (!predecessors.empty())
-            {
-                // At first we go down until we reach leaves
-                // or already computed biggest inner distances
-                if (!current->isLeaf())
+                // We just finished exploring a node
+                toProcess.pop_back();
+                if (toProcess.empty())
                 {
-                    asNode = static_pointer_cast<NodeType>(current);
-                    if (!asNode->alreadyComputed)
-                    {
-                        predecessors.push_back(asNode);
-                        current = asNode->model0;
-                        continue;
-                    }
+                    break;
                 }
 
-                // Then we either switch branches or compute
-                // biggest inner distances and go back up the tree
-                auto child1 = predecessors.back()->model1;
-                if (current == child1)
+                auto node = static_pointer_cast<NodeType>(toProcess.back().back());
+
+                // We compute the distance between the submodels of the node
                 {
-                    // Compute biggest inner distance and go back up the tree
-                    asNode = predecessors.back();
-                    current = static_pointer_cast<ModelType>(asNode);
-                    predecessors.pop_back();
-                    auto child0 = asNode->model0;
-                    auto dist = Models::getDistance<ApproximatorType>(child0, child1, outputID);
+                    auto const mod = node->getModels();
 
-                    if (!child0->isLeaf() && (dist < static_pointer_cast<NodeType>(child0)->biggestInnerDistance))
+                    auto mIt0 = mod.begin();
+                    auto mIt1 = mod.begin(); ++mIt1;    // We assume there are at least 2 submodels
+                    auto const mEnd = mod.end();
+
+                    auto dist = Models::getDistance<ApproximatorType>(*mIt0, *mIt1, outputID);
+                    ++mIt1;
+
+                    do
                     {
-                        dist = static_pointer_cast<NodeType>(child0)->biggestInnerDistance;
-                    }
+                        if (!(*mIt0)->isLeaf())
+                        {
+                            auto const temp = static_pointer_cast<NodeType>(*mIt0)->biggestInnerDistance;
+                            if (temp > dist)
+                            {
+                                dist = temp;
+                            }
+                        }
 
-                    if (!child1->isLeaf() && (dist < static_pointer_cast<NodeType>(child1)->biggestInnerDistance))
-                    {
-                        dist = static_pointer_cast<NodeType>(child1)->biggestInnerDistance;
-                    }
+                        for (; mIt1 != mEnd; ++mIt1)
+                        {
+                            auto const temp = Models::getDistance<ApproximatorType>(*mIt0, *mIt1, outputID);
+                            if (temp > dist)
+                            {
+                                dist = temp;
+                            }
+                        }
 
-                    asNode->biggestInnerDistance = dist;
+                        ++mIt0; mIt1 = mIt0; ++mIt1;
+                    } while (mIt0 != mEnd);
+
+                    node->biggestInnerDistance = dist;
+                    node->alreadyComputed = true;
                 }
-                else
-                {
-                    // Switch branches
-                    current = child1;
-                }
+
+                toProcess.back().pop_back();
             }
         }
 
-        // And now we compute it for this node
-        biggestInnerDistance = Models::getDistance<ApproximatorType>(model0, model1, outputID);
-
-        if (model0->isLeaf() && (biggestInnerDistance < static_pointer_cast<NodeType>(model0)->biggestInnerDistance))
+        // Now we compute the biggest inner distance overall
         {
-            biggestInnerDistance = static_pointer_cast<NodeType>(model0)->biggestInnerDistance;
-        }
+            auto mIt0 = models.begin();
+            auto mIt1 = models.begin(); ++mIt1;    // We assume there are at least 2 submodels
+            auto const mEnd = models.end();
 
-        if (model1->isLeaf() && (biggestInnerDistance < static_pointer_cast<NodeType>(model1)->biggestInnerDistance))
-        {
-            biggestInnerDistance = static_pointer_cast<NodeType>(model1)->biggestInnerDistance;
-        }
+            auto dist = Models::getDistance<ApproximatorType>(*mIt0, *mIt1, outputID);
+            ++mIt1;
 
-        alreadyComputed = true;
+            do
+            {
+                if (!(*mIt0)->isLeaf())
+                {
+                    auto const temp = static_pointer_cast<NodeType>(*mIt0)->biggestInnerDistance;
+                    if (temp > dist)
+                    {
+                        dist = temp;
+                    }
+                }
+
+                for (; mIt1 != mEnd; ++mIt1)
+                {
+                    auto const temp = Models::getDistance<ApproximatorType>(*mIt0, *mIt1, outputID);
+                    if (temp > dist)
+                    {
+                        dist = temp;
+                    }
+                }
+
+                ++mIt0; mIt1 = mIt0; ++mIt1;
+            } while (mIt0 != mEnd);
+
+            biggestInnerDistance = dist;
+            alreadyComputed = true;
+        }
     }
 
     return biggestInnerDistance;
@@ -156,15 +186,15 @@ void Node<ApproximatorType>::setForms(std::vector<Approximators::Form<Approximat
 
 
 template<typename ApproximatorType>
-std::shared_ptr<Model<ApproximatorType>> Node<ApproximatorType>::getModel0() const
+std::vector<std::shared_ptr<Model<ApproximatorType>>> const& Node<ApproximatorType>::getModels() const
 {
-    return model0;
+    return models;
 }
 
 template<typename ApproximatorType>
-std::shared_ptr<Model<ApproximatorType>> Node<ApproximatorType>::getModel1() const
+std::shared_ptr<Model<ApproximatorType>> Node<ApproximatorType>::getModel(unsigned int i) const
 {
-    return model1;
+    return models[i];
 }
 
 

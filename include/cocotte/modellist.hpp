@@ -166,8 +166,8 @@ void ModelList<ApproximatorType>::restructureModels()
             else
             {
                 shared_ptr<NodeType> asNode = static_pointer_cast<NodeType>(current);
-                toProcess.push_back(asNode->getModel0());
-                toProcess.push_back(asNode->getModel1());
+                auto const children = asNode->getModels();
+                toProcess.insert(toProcess.end(), children.begin(), children.end());
             }
         }
         else
@@ -466,8 +466,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::cr
 // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
 template <typename ApproximatorType>
 std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tryMerge(
-        std::shared_ptr<Models::Model<ApproximatorType>> model0,
-        std::shared_ptr<Models::Model<ApproximatorType>> model1,
+        std::vector<std::shared_ptr<Models::Model<ApproximatorType>>> candidateModels,
         bool markAsTemporary)
 {
     using std::max;
@@ -482,30 +481,49 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
     using FormType = Approximators::Form<ApproximatorType>;
 
     // We determine if new node should be temporary
-    markAsTemporary = (markAsTemporary || model0->isTemporary() || model1->isTemporary());
+    for (auto const& model : candidateModels)
+    {
+        markAsTemporary = (markAsTemporary || model->isTemporary());
+    }
 
-    shared_ptr<ModelType> node (new NodeType(model0, model1, markAsTemporary));
+    shared_ptr<ModelType> node (new NodeType(candidateModels, markAsTemporary));
     unsigned int const nbPoints = node->getNbPoints();
     auto const mBegin = Models::pointsBegin<ApproximatorType>(const_pointer_cast<ModelType const>(node));
     auto const mEnd = Models::pointsEnd<ApproximatorType>(const_pointer_cast<ModelType const>(node));
 
-    vector<FormType> const forms0 = model0->getForms(), forms1 = model1->getForms();
     vector<FormType> newForms;
 
     for (unsigned int outputDim = 0; outputDim < nbOutputDims; ++outputDim)
     {
-        FormType const form0 = forms0[outputDim], form1 = forms1[outputDim];
-        unsigned int const totalNbDimensions = form0.usedDimensions.getTotalNbDimensions();
+        vector<FormType> modelForms;
+        for (auto const& model : candidateModels)
+        {
+            modelForms.push_back(model->getForms()[outputDim]);
+        }
+
+        unsigned int const totalNbDimensions = modelForms[0].usedDimensions.getTotalNbDimensions();
+
+        auto fIt = modelForms.begin();
+        auto const fEnd = modelForms.end();
 
 //        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
-        UsedDimensions formerlyNeededDimensions = form0.neededDimensions + form1.neededDimensions;
-        UsedDimensions relevantDimensions = form0.relevantDimensions + form1.relevantDimensions;
+        UsedDimensions formerlyNeededDimensions = fIt->neededDimensions;
+        UsedDimensions relevantDimensions = fIt->relevantDimensions;
+        unsigned int minPossibleComplexity = fIt->complexity;
+        unsigned int maxAllowedComplexity = fIt->complexity;
+        for(++fIt; fIt != fEnd; ++fIt)
+        {
+            formerlyNeededDimensions += fIt->neededDimensions;
+            relevantDimensions += fIt->relevantDimensions;
+            maxAllowedComplexity += fIt->complexity;
+            minPossibleComplexity = max(minPossibleComplexity, fIt->complexity);
+        }
+
         UsedDimensions irrelevantDimensions = relevantDimensions.complement();
         UsedDimensions relevantOtherDimensions = relevantDimensions ^ formerlyNeededDimensions.complement();
 
         unsigned int const nbRelevantOtherDimensions = relevantOtherDimensions.getNbUsed();
         unsigned int const nbUnusedDimensions = formerlyNeededDimensions.getNbUnused();
-        unsigned int const maxAllowedComplexity = form0.complexity + form1.complexity;
 
         // The lowest complexity form which has been found
         list<FormType> bestForms;
@@ -518,7 +536,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         for (unsigned int nbAdditionalDimensions = 0;
              nbAdditionalDimensions <= nbUnusedDimensions; ++nbAdditionalDimensions)
         {
-            unsigned int lowerBound = max(form0.complexity, form1.complexity);
+            unsigned int lowerBound = minPossibleComplexity;
             unsigned int upperBound = maxAllowedComplexity;
 
             // Instead of trying one complexity in [lowerBound, upperBound], we will consider a range,
@@ -756,15 +774,11 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                         // we may need to roll back some merges
                         if (Models::getDistance<ApproximatorType>(model, atomic, outputID) < biggestInnerDistance)
                         {
-                            auto const& child0 = asNode->getModel0();
-                            auto const& child1 = asNode->getModel1();
+                            auto const& children = asNode->getModels();
 
                             mayBeUnmerged = true;
-                            auto const innerDistance = Models::getDistance<ApproximatorType>(child0, child1, outputID);
-                            independentMergesInnerDistances.push_back(make_pair(innerDistance, model));
-
-                            independentlyMergedModels.push_back(child0);
-                            independentlyMergedModels.push_back(child1);
+                            independentMergesInnerDistances.push_back(make_pair(asNode->getBiggestInnerDistance(outputID), model));
+                            independentlyMergedModels.insert(independentlyMergedModels.end(), children.begin(), children.end());
 
                             break;
                         }
@@ -864,8 +878,8 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                 auto& entryDistance = iIt->first;
                 auto const& mergedModel = iIt->second;
                 auto const asNode = static_pointer_cast<NodeType>(mergedModel);
-                auto const& child0 = asNode->getModel0();
-                auto const& child1 = asNode->getModel1();
+                auto const& child0 = asNode->getModel(0);
+                auto const& child1 = asNode->getModel(1);
 
                 if ((candidateModels.count(child0) > 0) && (candidateModels.count(child1) > 0))
                 {
@@ -953,7 +967,7 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
 
                 if ((unavailable.count(model0) == 0) && (unavailable.count(model1) == 0))
                 {
-                    auto newModel = tryMerge(model0, model1, markAsTemporary);
+                    auto newModel = tryMerge({model0, model1}, markAsTemporary);
 
                     if (newModel)
                     {

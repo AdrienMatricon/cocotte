@@ -104,11 +104,10 @@ private:
     // Utility function
     std::shared_ptr<Models::Model<ApproximatorType>> createLeaf(std::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
 
-    // Tries to merge two models into one without increasing complexity
+    // Tries to merge models into one without increasing complexity
     // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
     std::shared_ptr<Models::Model<ApproximatorType>> tryMerge(
-            std::shared_ptr<Models::Model<ApproximatorType>> model0,
-            std::shared_ptr<Models::Model<ApproximatorType>> model1,
+            std::vector<std::shared_ptr<Models::Model<ApproximatorType>>> candidateModels,
             bool markAsTemporary = false);
 
     // Merges the models with each other, starting with the closest ones:
