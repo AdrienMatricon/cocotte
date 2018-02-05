@@ -3,6 +3,7 @@
 using std::abs;
 #include <algorithm>
 using std::sort;
+#include <random>
 #include <cocotte/distance.h>
 
 namespace Cocotte {
@@ -182,5 +183,36 @@ Distance<DistanceType::CLOSEST_DIM_X> Distance<DistanceType::CLOSEST_DIM_X>::get
     return bigger;
 }
 
+
+
+////////////////
+//// RANDOM ////
+////////////////
+// Constructor
+Distance<DistanceType::RANDOM>::Distance(Cocotte::DataPoint const& lhs, Cocotte::DataPoint const& rhs, unsigned int outputID) : value(0)
+{
+    (void) lhs;
+    (void) rhs;
+    (void) outputID;
+    static std::default_random_engine generator;
+    static std::uniform_real_distribution<double> distrib(0., 1.);
+    value = distrib(generator);
+}
+
+
+// Relational operator
+bool operator<(Distance<DistanceType::RANDOM> const& lhs, Distance<DistanceType::RANDOM> const& rhs)
+{
+    return lhs.value < rhs.value;
+}
+
+
+// Returns a distance X such that smaller < X
+Distance<DistanceType::RANDOM> Distance<DistanceType::RANDOM>::getBiggerDistanceThan(Distance const& smaller)
+{
+    Distance<DistanceType::RANDOM> bigger = smaller;
+    bigger.value = 2*bigger.value + 0.01;
+    return bigger;
+}
 
 }

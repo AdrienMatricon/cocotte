@@ -248,8 +248,8 @@ int main(int argc, char *argv[])
                 {
                     learner.addDataPoints(source.getTrainingDataPoints(nbPointsLastBatch));
                     cout << "done." << endl;
-                    cout << "Removing artifacts..."; cout.flush();
-                    learner.removeArtifacts();
+//                    cout << "Removing artifacts..."; cout.flush();
+//                    learner.removeArtifacts();
                 }
 
                 cout << "done." << endl << endl;

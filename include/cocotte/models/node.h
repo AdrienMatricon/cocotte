@@ -28,14 +28,14 @@ private:
     unsigned int nbPoints;
     ModelDistance biggestInnerDistance;
     bool alreadyComputed = false;
-    std::vector<std::shared_ptr<Model<ApproximatorType>>> models;
+    std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels;
     bool temporary;
 
 
 public:
 
     Node() = default;
-    Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> models,
+    Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels,
          bool temporary = false);
     virtual bool isLeaf() const override;
     virtual bool isTemporary() const override;
@@ -44,8 +44,8 @@ public:
     virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() override;
     void setForms(std::vector<Approximators::Form<ApproximatorType>> const& forms);
 
-    std::vector<std::shared_ptr<Model<ApproximatorType>>> const& getModels() const;
-    std::shared_ptr<Model<ApproximatorType>> getModel(unsigned int i) const;
+    std::vector<std::shared_ptr<Model<ApproximatorType>>> const& getSubmodels() const;
+    std::shared_ptr<Model<ApproximatorType>> getSubmodel(unsigned int i) const;
 
     // Serialization
     template<typename Archive>
@@ -56,7 +56,7 @@ public:
         archive & boost::serialization::base_object<Model<ApproximatorType>>(node);
         archive & node.forms;
         archive & node.nbPoints;
-        archive & node.models;
+        archive & node.submodels;
         archive & node.temporary;
     }
 

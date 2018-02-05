@@ -11,14 +11,14 @@ namespace Models {
 
 
 template<typename ApproximatorType>
-Node<ApproximatorType>::Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> mod,
+Node<ApproximatorType>::Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> sub,
                              bool temp)
-    : models(mod), temporary(temp)
+    : submodels(sub), temporary(temp)
 {
     nbPoints = 0;
-    for (auto const& m : mod)
+    for (auto const& model : submodels)
     {
-        nbPoints += m->getNbPoints();
+        nbPoints += model->getNbPoints();
     }
 }
 
@@ -59,7 +59,7 @@ ModelDistance Node<ApproximatorType>::getBiggestInnerDistance(unsigned int outpu
         // An element of the outer list corresponds to one depth of the tree
         // The inner list contains the unexplored elements of a given depth
         // (this is a depth-first exploration of the tree)
-        list<vector<shared_ptr<ModelType>>> toProcess{models};
+        list<vector<shared_ptr<ModelType>>> toProcess{submodels};
 
         while (!toProcess.empty())
         {
@@ -70,7 +70,7 @@ ModelDistance Node<ApproximatorType>::getBiggestInnerDistance(unsigned int outpu
                 auto const asNode = static_pointer_cast<NodeType>(current);
                 if (!asNode->alreadyComputed)
                 {
-                    toProcess.push_back(asNode->getModels());
+                    toProcess.push_back(asNode->getSubmodels());
                     continue;
                 }
             }
@@ -90,7 +90,7 @@ ModelDistance Node<ApproximatorType>::getBiggestInnerDistance(unsigned int outpu
 
                 // We compute the distance between the submodels of the node
                 {
-                    auto const mod = node->getModels();
+                    auto const mod = node->getSubmodels();
 
                     auto mIt0 = mod.begin();
                     auto mIt1 = mod.begin(); ++mIt1;    // We assume there are at least 2 submodels
@@ -132,9 +132,9 @@ ModelDistance Node<ApproximatorType>::getBiggestInnerDistance(unsigned int outpu
 
         // Now we compute the biggest inner distance overall
         {
-            auto mIt0 = models.begin();
-            auto mIt1 = models.begin(); ++mIt1;    // We assume there are at least 2 submodels
-            auto const mEnd = models.end();
+            auto mIt0 = submodels.begin();
+            auto mIt1 = submodels.begin(); ++mIt1;    // We assume there are at least 2 submodels
+            auto const mEnd = submodels.end();
 
             auto dist = Models::getDistance<ApproximatorType>(*mIt0, *mIt1, outputID);
             ++mIt1;
@@ -186,15 +186,15 @@ void Node<ApproximatorType>::setForms(std::vector<Approximators::Form<Approximat
 
 
 template<typename ApproximatorType>
-std::vector<std::shared_ptr<Model<ApproximatorType>>> const& Node<ApproximatorType>::getModels() const
+std::vector<std::shared_ptr<Model<ApproximatorType>>> const& Node<ApproximatorType>::getSubmodels() const
 {
-    return models;
+    return submodels;
 }
 
 template<typename ApproximatorType>
-std::shared_ptr<Model<ApproximatorType>> Node<ApproximatorType>::getModel(unsigned int i) const
+std::shared_ptr<Model<ApproximatorType>> Node<ApproximatorType>::getSubmodel(unsigned int i) const
 {
-    return models[i];
+    return submodels[i];
 }
 
 

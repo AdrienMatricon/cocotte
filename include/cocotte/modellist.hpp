@@ -62,6 +62,24 @@ void ModelList<ApproximatorType>::addModel(std::shared_ptr<Models::Model<Approxi
 
 
 template <typename ApproximatorType>
+void ModelList<ApproximatorType>::removeModel(std::shared_ptr<Models::Model<ApproximatorType>> model)
+{
+    auto const mEnd = models.end();
+    for (auto mIt = models.begin(); mIt != mEnd; ++mIt)
+    {
+        if (*mIt == model)
+        {
+            models.erase(mIt);
+            break;
+        }
+    }
+
+    --nbModels;
+    classifier.reset();
+}
+
+
+template <typename ApproximatorType>
 std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::firstModel()
 {
     return models.front();
@@ -87,20 +105,24 @@ void ModelList<ApproximatorType>::removeFirstModel()
 template <typename ApproximatorType>
 void ModelList<ApproximatorType>::addPoint(std::shared_ptr<DataPoint const> pointAddress, bool noRollback)
 {
-    using std::move;
-    using std::list;
-    using std::shared_ptr;
-    using ModelType = Models::Model<ApproximatorType>;
+    //    using std::move;
+    //    using std::list;
+    //    using std::shared_ptr;
+    //    using ModelType = Models::Model<ApproximatorType>;
 
-    models = move(mergeAsMuchAsPossible(
-                      list<shared_ptr<ModelType>>(
-                          1, createLeaf(pointAddress, noRollback)),
-                      move(models),
-                      noRollback,
-                      true));
 
-    classifier.reset();
-    nbModels = models.size();
+    //    models = move(mergeAsMuchAsPossible(
+    //                      list<shared_ptr<ModelType>>(
+    //                          1, createLeaf(pointAddress, noRollback)),
+    //                      move(models),
+    //                      noRollback,
+    //                      true));
+
+    //    classifier.reset();
+    //    nbModels = models.size();
+
+    addModel(createLeaf(pointAddress));
+    performPointStealing();
 }
 
 
@@ -109,23 +131,30 @@ void ModelList<ApproximatorType>::addPoints(std::vector<std::shared_ptr<DataPoin
                                             bool noRollback,
                                             bool addToExistingModelsOnly)
 {
-    using std::move;
-    using std::list;
-    using std::shared_ptr;
-    using ModelType = Models::Model<ApproximatorType>;
+    //    using std::move;
+    //    using std::list;
+    //    using std::shared_ptr;
+    //    using ModelType = Models::Model<ApproximatorType>;
 
-    bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
+    //    bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
 
-    list<shared_ptr<ModelType>> newLeaves;
+    //    list<shared_ptr<ModelType>> newLeaves;
+    //    for (auto const& pointAddress : pointAddresses)
+    //    {
+    //        newLeaves.push_back(createLeaf(pointAddress, markAsTemporary));
+    //    }
+
+    //    models = move(mergeAsMuchAsPossible(move(newLeaves), move(models), noRollback, addToExistingModelsOnly));
+
+    //    classifier.reset();
+    //    nbModels = models.size();
+
     for (auto const& pointAddress : pointAddresses)
     {
-        newLeaves.push_back(createLeaf(pointAddress, markAsTemporary));
+        addModel(createLeaf(pointAddress));
     }
 
-    models = move(mergeAsMuchAsPossible(move(newLeaves), move(models), noRollback, addToExistingModelsOnly));
-
-    classifier.reset();
-    nbModels = models.size();
+    performPointStealing();
 }
 
 
@@ -166,7 +195,7 @@ void ModelList<ApproximatorType>::restructureModels()
             else
             {
                 shared_ptr<NodeType> asNode = static_pointer_cast<NodeType>(current);
-                auto const children = asNode->getModels();
+                auto const children = asNode->getSubmodels();
                 toProcess.insert(toProcess.end(), children.begin(), children.end());
             }
         }
@@ -462,11 +491,14 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::cr
 }
 
 
-// Tries to merge two models into one without increasing complexity
-// Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+// - Tries to merge models into one without increasing complexity
+// - Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+// - shouldWork can be set to specify complexities and dimensions that should allow fitting,
+//    to make sure that a solution will be found
 template <typename ApproximatorType>
 std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tryMerge(
         std::vector<std::shared_ptr<Models::Model<ApproximatorType>>> candidateModels,
+        std::vector<std::pair<unsigned int, UsedDimensions>> const& shouldWork,
         bool markAsTemporary)
 {
     using std::max;
@@ -506,7 +538,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         auto fIt = modelForms.begin();
         auto const fEnd = modelForms.end();
 
-//        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
+        //        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
         UsedDimensions formerlyNeededDimensions = fIt->neededDimensions;
         UsedDimensions relevantDimensions = fIt->relevantDimensions;
         unsigned int minPossibleComplexity = fIt->complexity;
@@ -517,6 +549,12 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
             relevantDimensions += fIt->relevantDimensions;
             maxAllowedComplexity += fIt->complexity;
             minPossibleComplexity = max(minPossibleComplexity, fIt->complexity);
+        }
+
+        if (!shouldWork.empty())
+        {
+            maxAllowedComplexity = shouldWork[outputDim].first;
+            formerlyNeededDimensions += shouldWork[outputDim].second;
         }
 
         UsedDimensions irrelevantDimensions = relevantDimensions.complement();
@@ -544,7 +582,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
             // That way, if no form in the range fits, we know the complexity was not high enough
             unsigned int middleComplexityRangeMin,  middleComplexityRangeMax;
 
-            while (upperBound > lowerBound)
+            while (upperBound >= lowerBound)
             {
                 if (upperBound - lowerBound < 5)
                 {
@@ -572,8 +610,9 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                     }
                     else
                     {
-                        middleComplexityRangeMin = ApproximatorType::getComplexityRangeLowerBound(
-                                    totalNbDimensions, middleComplexityRangeMax);
+                        middleComplexityRangeMin = max(ApproximatorType::getComplexityRangeLowerBound(
+                                                           totalNbDimensions, middleComplexityRangeMax),
+                                                       lowerBound);
                     }
 
                 }
@@ -774,7 +813,7 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                         // we may need to roll back some merges
                         if (Models::getDistance<ApproximatorType>(model, atomic, outputID) < biggestInnerDistance)
                         {
-                            auto const& children = asNode->getModels();
+                            auto const& children = asNode->getSubmodels();
 
                             mayBeUnmerged = true;
                             independentMergesInnerDistances.push_back(make_pair(asNode->getBiggestInnerDistance(outputID), model));
@@ -878,8 +917,8 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
                 auto& entryDistance = iIt->first;
                 auto const& mergedModel = iIt->second;
                 auto const asNode = static_pointer_cast<NodeType>(mergedModel);
-                auto const& child0 = asNode->getModel(0);
-                auto const& child1 = asNode->getModel(1);
+                auto const& child0 = asNode->getSubmodel(0);
+                auto const& child1 = asNode->getSubmodel(1);
 
                 if ((candidateModels.count(child0) > 0) && (candidateModels.count(child1) > 0))
                 {
@@ -967,7 +1006,7 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
 
                 if ((unavailable.count(model0) == 0) && (unavailable.count(model1) == 0))
                 {
-                    auto newModel = tryMerge({model0, model1}, markAsTemporary);
+                    auto newModel = tryMerge({model0, model1}, {}, markAsTemporary);
 
                     if (newModel)
                     {
@@ -1007,6 +1046,310 @@ std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<Approximat
     // Finally, we put everything in a list and return it
     return list<shared_ptr<ModelType>>(candidateModels.begin(), candidateModels.end());
 }
+
+
+// Tries have one model "steal" points (or rather, submodels) from each other:
+// - candidate0 and candidate1 are models containing only one point (leaves)
+// - the top-level model containing candidate0 tries to steal candidate1
+//    or a model that contains it, and vice-versa
+// - we go with the option which leads to the lowest sum of complexities
+// => if point stealing was possible: we return true and the new models
+//    otherwise: we return false and an empty list
+template <typename ApproximatorType>
+std::pair<bool, std::list<std::shared_ptr<Models::Model<ApproximatorType>>>>
+ModelList<ApproximatorType>::pointStealing(
+        Models::ModelIterator<ApproximatorType> candidate0,
+        Models::ModelIterator<ApproximatorType> candidate1)
+{
+    using std::vector;
+    using std::list;
+    using std::map;
+    using std::pair;
+    using std::make_pair;
+    using std::shared_ptr;
+    using std::static_pointer_cast;
+    using std::sort;
+    using ModelType = Models::Model<ApproximatorType>;
+    using NodeType = Models::Node<ApproximatorType>;
+    using ModelPointer = shared_ptr<ModelType>;
+    //    using ModelIterator = Models::ModelIterator<ApproximatorType>;
+
+    auto smartTryMerge = [this](
+            vector<ModelPointer> candidateModels)
+            -> ModelPointer
+    {
+        // Store merge result and use that info whenever possible to avoid computation
+        static map<vector<ModelPointer>, ModelPointer> alreadyComputed;
+        sort(candidateModels.begin(), candidateModels.end());
+        if (alreadyComputed.count(candidateModels) > 0)
+        {
+            return alreadyComputed.at(candidateModels);
+        }
+        else
+        {
+            auto const mergeResult = tryMerge(candidateModels);
+            alreadyComputed.emplace(candidateModels, mergeResult);
+            return mergeResult;
+        }
+    };
+
+    auto getTreeWithoutSubmodel = [this, &smartTryMerge](list<ModelPointer> treeBranch) -> ModelPointer
+    {
+        // - treeBranch is the list containing a model, then its child,
+        //    then this child's child, etc,
+        //    leading to a submodel that we want to remove
+        // - what we remove has to be a submodel,
+        //    which means that treeBranch should contain at least 2 elements
+        vector<ModelPointer> orphans;
+
+        // We determine all orphan submodels
+        // The variable named 'removed' contains the removed submodel at first,
+        //  and contains the top-level model when the loop ends
+        auto removed = treeBranch.back();
+        treeBranch.pop_back();
+
+        do
+        {
+            auto const parent = treeBranch.back();
+            for (auto const& child : static_pointer_cast<NodeType>(parent)->getSubmodels())
+            {
+                if (child != removed)
+                {
+                    orphans.push_back(child);
+                }
+            }
+            removed = parent;
+            treeBranch.pop_back();
+        } while (!treeBranch.empty());
+
+        // If there is only one, it is now a top-level model and we return it
+        if (orphans.size() == 1)
+        {
+            return orphans.back();
+        }
+
+        // Otherwise we fuse all orphans into one model
+        //  (which has at worst the same form that the former top-level model)
+        vector<pair<unsigned int, UsedDimensions>> topLevelModelCharacteristics;
+        for (auto const& form : removed->getForms())
+        {
+            topLevelModelCharacteristics.push_back(make_pair(form.complexity, form.usedDimensions));
+        }
+
+        auto const newModel = tryMerge(orphans, topLevelModelCharacteristics);
+
+        if (!newModel)
+        {
+            throw std::runtime_error("Orphan submodels could not be merged back into one");
+        }
+
+        return newModel;
+    };
+
+
+    // We initialize some stuff
+    vector<list<ModelPointer>> treeBranches{candidate0.getTreeBranch(), candidate1.getTreeBranch()};
+    vector<ModelPointer> const topModels{treeBranches[0].front(), treeBranches[1].front()};
+    vector<unsigned int> topModelComplexities(2, 0);
+
+    for (unsigned int i = 0; i < 2; ++i)
+    {
+        if (topModels[i]->isLeaf())
+        {
+            topModelComplexities[i] = 1;
+        }
+        else
+        {
+            for (auto const& form : static_pointer_cast<NodeType>(topModels[i])->getForms())
+            {
+                topModelComplexities[i] += form.complexity;
+            }
+        }
+    }
+
+    unsigned int bestComplexity = topModelComplexities[0] + topModelComplexities[1];
+    list<ModelPointer> bestModels;
+
+    // We try to merge the top-level models
+    {
+        auto const newModel = smartTryMerge(topModels);
+        if (newModel)
+        {
+            unsigned int complexity = 0;
+            for (auto const& form : static_pointer_cast<NodeType>(newModel)->getForms())
+            {
+                complexity += form.complexity;
+            }
+
+            if (complexity <= bestComplexity)
+            {
+                bestComplexity = complexity;
+                bestModels = {newModel};
+            }
+        }
+    }
+
+    // We try to find if a merge between a top-level model and a submodel could be better
+    for (unsigned int i = 0; i < 2; ++i)
+    {
+        auto& treeBranch = treeBranches[i];
+        auto const& otherBranchTopModel = topModels[1-i];
+
+        auto subModel = treeBranch.back();
+        treeBranch.pop_back();
+        while (!treeBranch.empty())
+        {
+            auto const newModel = smartTryMerge(vector<ModelPointer>{otherBranchTopModel, subModel});
+            if (newModel)
+            {
+                unsigned int complexity = 0;
+                for (auto const& form : static_pointer_cast<NodeType>(newModel)->getForms())
+                {
+                    complexity += form.complexity;
+                }
+
+                treeBranch.push_back(subModel);
+                auto const restOfTheBranch = getTreeWithoutSubmodel(treeBranch);
+                treeBranch.pop_back();
+
+                if (restOfTheBranch->isLeaf())
+                {
+                    complexity += 1;
+                }
+                else
+                {
+                    for (auto const& form : static_pointer_cast<NodeType>(restOfTheBranch)->getForms())
+                    {
+                        complexity += form.complexity;
+                    }
+                }
+
+                if (complexity < bestComplexity)
+                {
+                    bestComplexity = complexity;
+                    bestModels = {newModel, restOfTheBranch};
+                }
+            }
+            subModel = treeBranch.back();
+            treeBranch.pop_back();
+        }
+    }
+
+    if (bestModels.empty())
+    {
+        // No merge succeeded
+        return {false, {}};
+    }
+    else
+    {
+        return {true, bestModels};
+    }
+}
+
+
+// Merge models as much as possible by having them "steal" points (or rather, submodels) from each other,
+//  starting with the closest pair of submodels
+template <typename ApproximatorType>
+void ModelList<ApproximatorType>::performPointStealing()
+{
+    using std::vector;
+    using std::priority_queue;
+    using std::map;
+    using std::pair;
+    using std::make_pair;
+    using std::shared_ptr;
+    using ModelDistance = Models::ModelDistance;
+    using ModelType = Models::Model<ApproximatorType>;
+    using ModelPointer = shared_ptr<ModelType>;
+    using ModelPointerPair = pair<ModelPointer, ModelPointer>;
+    using ModelIterator = Models::ModelIterator<ApproximatorType>;
+
+    // We compute all distances between pairs of points,
+    //  and map each point to an iterator
+    priority_queue<pair<ModelDistance, ModelPointerPair>,
+            vector<pair<ModelDistance, ModelPointerPair>>,
+            HasGreaterDistance<ModelPointerPair>> distances;
+    map<shared_ptr<ModelType>, ModelIterator> pointToIterator;
+    {
+        auto const mEnd = models.end();
+        for (auto mIt0 = models.begin(); mIt0 != mEnd; ++mIt0)
+        {
+            auto const pEnd0 = Models::pointsEnd<ApproximatorType>(*mIt0);
+            for (auto pIt0 = Models::pointsBegin<ApproximatorType>(*mIt0); pIt0 != pEnd0; ++pIt0)
+            {
+                pointToIterator.emplace(pIt0.getTreeBranch().back(), pIt0);
+            }
+
+            auto mIt1 = mIt0; ++mIt1;
+            for (; mIt1 != mEnd; ++mIt1)
+            {
+                auto const pEnd1 = Models::pointsEnd<ApproximatorType>(*mIt1);
+                for (auto pIt0 = Models::pointsBegin<ApproximatorType>(*mIt0); pIt0 != pEnd0; ++pIt0)
+                {
+                    for (auto pIt1 = Models::pointsBegin<ApproximatorType>(*mIt1); pIt1 != pEnd1; ++pIt1)
+                    {
+                        distances.push(
+                                    make_pair(
+                                        ModelDistance(*pIt0, *pIt1, outputID),
+                                        make_pair(pIt0.getTreeBranch().back(),
+                                                  pIt1.getTreeBranch().back()
+                                                  )
+                                        )
+                                    );
+                    }
+                }
+            }
+        }
+    }
+
+    // Now we consider all pairs of points, one by one
+    while (!distances.empty())
+    {
+        // We retrieve the pair from the distance priority queue
+        auto currentPair = distances.top().second;
+        distances.pop();
+        auto const pointIterator0 = pointToIterator.at(currentPair.first);
+        auto const pointIterator1 = pointToIterator.at(currentPair.second);
+
+        // We skip cases where both points belong to the same model
+        if (pointIterator0.getTreeBranch().front() == pointIterator1.getTreeBranch().front())
+        {
+            continue;
+        }
+
+        // We call pointStealing() with the points
+        //  and update the models and the map if it succeeds
+        auto pointStealingResult = pointStealing(pointIterator0, pointIterator1);
+        if (pointStealingResult.first)
+        {
+            // We remove the old models
+            {
+                auto const toRemove0 = pointIterator0.getTreeBranch().front();
+                auto const toRemove1 = pointIterator1.getTreeBranch().front();
+
+                removeModel(toRemove0);
+                removeModel(toRemove1);
+            }
+
+            // We add the new models and update the map
+            {
+                for (auto const& newModel : pointStealingResult.second)
+                {
+                    addModel(newModel);
+                    auto const pEnd = Models::pointsEnd<ApproximatorType>(newModel);
+                    for (auto pIt = Models::pointsBegin<ApproximatorType>(newModel);
+                         pIt != pEnd; ++pIt)
+                    {
+                        auto const point = pIt.getTreeBranch().back();
+                        pointToIterator.erase(point);
+                        pointToIterator.emplace(point, pIt);
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 
 }

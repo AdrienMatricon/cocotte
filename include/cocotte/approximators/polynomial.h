@@ -26,7 +26,6 @@ struct Form<Polynomial>
     UsedDimensions relevantDimensions;
     unsigned int complexity = 0;
     unsigned int degree = 0;
-    std::vector<bool> activeDoF;
     std::vector<double> params;
 
     Form() = default;

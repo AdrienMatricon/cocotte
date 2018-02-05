@@ -84,7 +84,7 @@ ModelIt<ApproximatorType, ModelType, PointType>& ModelIt<ApproximatorType, Model
     using std::shared_ptr;
     using std::static_pointer_cast;
 
-    ModelType* lastVisited = treeBranch.back().get();
+    auto lastVisited = treeBranch.back();
     treeBranch.pop_back();
     --depth;
 
@@ -93,12 +93,13 @@ ModelIt<ApproximatorType, ModelType, PointType>& ModelIt<ApproximatorType, Model
         return *this;
     }
 
-    shared_ptr<NodeType> currentNode = static_pointer_cast<NodeType>(treeBranch.back());
+    auto currentModel = treeBranch.back();
+    shared_ptr<NodeType> currentNode = static_pointer_cast<NodeType>(currentModel);
 
     // We go up the tree branch until we don't come from the last child
-    while (currentNode->getModels().back().get() == lastVisited)
+    while (currentNode->getSubmodels().back() == lastVisited)
     {
-        lastVisited = currentNode.get();
+        lastVisited = currentModel;
         treeBranch.pop_back();
         --depth;
 
@@ -107,14 +108,15 @@ ModelIt<ApproximatorType, ModelType, PointType>& ModelIt<ApproximatorType, Model
             return *this;
         }
 
-        currentNode = static_pointer_cast<NodeType>(treeBranch.back());
+        currentModel = treeBranch.back();
+        currentNode = static_pointer_cast<NodeType>(currentModel);
     }
 
     // We get the next child
     shared_ptr<ModelType> nextChild;
     {
-        auto cIt = currentNode->getModels().begin();
-        while(cIt->get() != lastVisited)
+        auto cIt = currentNode->getSubmodels().begin();
+        while(*cIt != lastVisited)
         {
             ++cIt;
         }
@@ -127,7 +129,7 @@ ModelIt<ApproximatorType, ModelType, PointType>& ModelIt<ApproximatorType, Model
 
     while (!nextChild->isLeaf())
     {
-        nextChild = static_pointer_cast<NodeType>(nextChild)->getModel(0);
+        nextChild = static_pointer_cast<NodeType>(nextChild)->getSubmodel(0);
         treeBranch.push_back(nextChild);
         ++depth;
     }
@@ -190,7 +192,7 @@ IteratorType pointsBegin(std::shared_ptr<ModelType> pModel)
 
     while (!pModel->isLeaf())
     {
-        pModel = static_pointer_cast<typename IteratorType::NodeType>(pModel)->getModel(0);
+        pModel = static_pointer_cast<typename IteratorType::NodeType>(pModel)->getSubmodel(0);
         ptrList.push_back(pModel);
         ++depth;
     }
