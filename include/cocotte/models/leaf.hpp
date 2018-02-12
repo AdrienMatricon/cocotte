@@ -10,8 +10,8 @@ namespace Models {
 
 template<typename ApproximatorType>
 Leaf<ApproximatorType>::Leaf(std::vector<Approximators::Form<ApproximatorType>> const& f,
-           std::shared_ptr<DataPoint const> p, bool temp)
-    : forms(f), pointAddress(p), temporary(temp)
+           std::shared_ptr<DataPoint const> p)
+    : forms(f), pointAddress(p)
 {}
 
 
@@ -19,13 +19,6 @@ template<typename ApproximatorType>
 bool Leaf<ApproximatorType>::isLeaf() const
 {
     return true;
-}
-
-
-template<typename ApproximatorType>
-bool Leaf<ApproximatorType>::isTemporary() const
-{
-    return temporary;
 }
 
 

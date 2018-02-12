@@ -667,6 +667,7 @@ tuple<bool,bool> Polynomial::tryFitSoplex(
     unsigned int const nbUsedInputDims = form.usedDimensions.getNbUsed();
     unsigned int const totalNbInputDims = form.usedDimensions.getTotalNbDimensions();
     unsigned int const degree = form.degree;
+    (void) nbPoints;
 
     // Extracting the normalization factors
     vector<double> inputNormalizationFactors(totalNbInputDims);

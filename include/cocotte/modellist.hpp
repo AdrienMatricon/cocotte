@@ -62,6 +62,24 @@ void ModelList<ApproximatorType>::addModel(std::shared_ptr<Models::Model<Approxi
 
 
 template <typename ApproximatorType>
+void ModelList<ApproximatorType>::removeModel(std::shared_ptr<Models::Model<ApproximatorType>> model)
+{
+    auto const mEnd = models.end();
+    for (auto mIt = models.begin(); mIt != mEnd; ++mIt)
+    {
+        if (*mIt == model)
+        {
+            models.erase(mIt);
+            break;
+        }
+    }
+
+    --nbModels;
+    classifier.reset();
+}
+
+
+template <typename ApproximatorType>
 std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::firstModel()
 {
     return models.front();
@@ -79,107 +97,24 @@ void ModelList<ApproximatorType>::removeFirstModel()
 
 
 // Creates leaves for the new points and merges them with models or submodels,
-// starting with the closest ones. We expect to get the same result
-// when adding points one by one, in batches, or all at once,
-// except if noRollback (previous merges are kept)
-// or addToExistingModelsOnly (new leaves merged into old models first) is set to true.
-// In that case, merging goes faster and new leaves/nodes are marked as temporary
+// starting with the closest ones
 template <typename ApproximatorType>
-void ModelList<ApproximatorType>::addPoint(std::shared_ptr<DataPoint const> pointAddress, bool noRollback)
+void ModelList<ApproximatorType>::addPoint(std::shared_ptr<DataPoint const> pointAddress)
 {
-    using std::move;
-    using std::list;
-    using std::shared_ptr;
-    using ModelType = Models::Model<ApproximatorType>;
-
-    models = move(mergeAsMuchAsPossible(
-                      list<shared_ptr<ModelType>>(
-                          1, createLeaf(pointAddress, noRollback)),
-                      move(models),
-                      noRollback,
-                      true));
-
-    classifier.reset();
-    nbModels = models.size();
+    addModel(createLeaf(pointAddress));
+    performPointStealing();
 }
 
 
 template <typename ApproximatorType>
-void ModelList<ApproximatorType>::addPoints(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses,
-                                            bool noRollback,
-                                            bool addToExistingModelsOnly)
+void ModelList<ApproximatorType>::addPoints(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses)
 {
-    using std::move;
-    using std::list;
-    using std::shared_ptr;
-    using ModelType = Models::Model<ApproximatorType>;
-
-    bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
-
-    list<shared_ptr<ModelType>> newLeaves;
     for (auto const& pointAddress : pointAddresses)
     {
-        newLeaves.push_back(createLeaf(pointAddress, markAsTemporary));
+        addModel(createLeaf(pointAddress));
     }
 
-    models = move(mergeAsMuchAsPossible(move(newLeaves), move(models), noRollback, addToExistingModelsOnly));
-
-    classifier.reset();
-    nbModels = models.size();
-}
-
-
-
-// Removes temporary models and add all points in temporary leaves with addPoints()
-// (with noRollback and addToExistingModelsOnly set to false)
-template <typename ApproximatorType>
-void ModelList<ApproximatorType>::restructureModels()
-{
-    using std::vector;
-    using std::list;
-    using std::shared_ptr;
-    using std::static_pointer_cast;
-    using ModelType = Models::Model<ApproximatorType>;
-    using LeafType = Models::Leaf<ApproximatorType>;
-    using NodeType = Models::Node<ApproximatorType>;
-
-
-    classifier.reset();
-
-    list<shared_ptr<ModelType>> toProcess = move(models);
-    models = list<shared_ptr<ModelType>>{};
-    nbModels = 0;
-
-    vector<shared_ptr<DataPoint const>> pointsInTemporaryLeaves;
-
-    while(!toProcess.empty())
-    {
-        auto current = toProcess.back();
-        toProcess.pop_back();
-
-        if (current->isTemporary())
-        {
-            if (current->isLeaf())
-            {
-                pointsInTemporaryLeaves.push_back(static_pointer_cast<LeafType>(current)->getPointAddress());
-            }
-            else
-            {
-                shared_ptr<NodeType> asNode = static_pointer_cast<NodeType>(current);
-                toProcess.push_back(asNode->getModel0());
-                toProcess.push_back(asNode->getModel1());
-            }
-        }
-        else
-        {
-            addModel(current);
-        }
-
-        // End of the scope, current is destroyed.
-        // It was the last shared_ptr to this model, which is therefore destroyed.
-    }
-
-    addPoints(pointsInTemporaryLeaves);
+    performPointStealing();
 }
 
 
@@ -441,7 +376,7 @@ std::string ModelList<ApproximatorType>::toString(
 // Utility function
 template <typename ApproximatorType>
 std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::createLeaf(
-        std::shared_ptr<DataPoint const> point, bool markAsTemporary)
+        std::shared_ptr<DataPoint const> point)
 {
     using std::vector;
     using std::shared_ptr;
@@ -458,17 +393,18 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::cr
         forms.push_back(ApproximatorType::fitOnePoint(outDim.value, nbInputDims));
     }
 
-    return shared_ptr<ModelType>(new LeafType(forms, point, markAsTemporary));
+    return shared_ptr<ModelType>(new LeafType(forms, point));
 }
 
 
-// Tries to merge two models into one without increasing complexity
-// Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+// - Tries to merge models into one without increasing complexity
+// - Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+// - shouldWork can be set to specify complexities and dimensions that should allow fitting,
+//    to make sure that a solution will be found
 template <typename ApproximatorType>
 std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tryMerge(
-        std::shared_ptr<Models::Model<ApproximatorType>> model0,
-        std::shared_ptr<Models::Model<ApproximatorType>> model1,
-        bool markAsTemporary)
+        std::vector<std::shared_ptr<Models::Model<ApproximatorType>>> candidateModels,
+        std::vector<std::pair<unsigned int, UsedDimensions>> const& shouldWork)
 {
     using std::max;
     using std::vector;
@@ -481,31 +417,50 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
     using NodeType = Models::Node<ApproximatorType>;
     using FormType = Approximators::Form<ApproximatorType>;
 
-    // We determine if new node should be temporary
-    markAsTemporary = (markAsTemporary || model0->isTemporary() || model1->isTemporary());
-
-    shared_ptr<ModelType> node (new NodeType(model0, model1, markAsTemporary));
+    shared_ptr<ModelType> node (new NodeType(candidateModels));
     unsigned int const nbPoints = node->getNbPoints();
     auto const mBegin = Models::pointsBegin<ApproximatorType>(const_pointer_cast<ModelType const>(node));
     auto const mEnd = Models::pointsEnd<ApproximatorType>(const_pointer_cast<ModelType const>(node));
 
-    vector<FormType> const forms0 = model0->getForms(), forms1 = model1->getForms();
     vector<FormType> newForms;
 
     for (unsigned int outputDim = 0; outputDim < nbOutputDims; ++outputDim)
     {
-        FormType const form0 = forms0[outputDim], form1 = forms1[outputDim];
-        unsigned int const totalNbDimensions = form0.usedDimensions.getTotalNbDimensions();
+        vector<FormType> modelForms;
+        for (auto const& model : candidateModels)
+        {
+            modelForms.push_back(model->getForms()[outputDim]);
+        }
 
-//        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
-        UsedDimensions formerlyNeededDimensions = form0.neededDimensions + form1.neededDimensions;
-        UsedDimensions relevantDimensions = form0.relevantDimensions + form1.relevantDimensions;
+        unsigned int const totalNbDimensions = modelForms[0].usedDimensions.getTotalNbDimensions();
+
+        auto fIt = modelForms.begin();
+        auto const fEnd = modelForms.end();
+
+        //        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
+        UsedDimensions formerlyNeededDimensions = fIt->neededDimensions;
+        UsedDimensions relevantDimensions = fIt->relevantDimensions;
+        unsigned int minPossibleComplexity = fIt->complexity;
+        unsigned int maxAllowedComplexity = fIt->complexity;
+        for(++fIt; fIt != fEnd; ++fIt)
+        {
+            formerlyNeededDimensions += fIt->neededDimensions;
+            relevantDimensions += fIt->relevantDimensions;
+            maxAllowedComplexity += fIt->complexity;
+            minPossibleComplexity = max(minPossibleComplexity, fIt->complexity);
+        }
+
+        if (!shouldWork.empty())
+        {
+            maxAllowedComplexity = shouldWork[outputDim].first;
+            formerlyNeededDimensions += shouldWork[outputDim].second;
+        }
+
         UsedDimensions irrelevantDimensions = relevantDimensions.complement();
         UsedDimensions relevantOtherDimensions = relevantDimensions ^ formerlyNeededDimensions.complement();
 
         unsigned int const nbRelevantOtherDimensions = relevantOtherDimensions.getNbUsed();
         unsigned int const nbUnusedDimensions = formerlyNeededDimensions.getNbUnused();
-        unsigned int const maxAllowedComplexity = form0.complexity + form1.complexity;
 
         // The lowest complexity form which has been found
         list<FormType> bestForms;
@@ -518,7 +473,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         for (unsigned int nbAdditionalDimensions = 0;
              nbAdditionalDimensions <= nbUnusedDimensions; ++nbAdditionalDimensions)
         {
-            unsigned int lowerBound = max(form0.complexity, form1.complexity);
+            unsigned int lowerBound = minPossibleComplexity;
             unsigned int upperBound = maxAllowedComplexity;
 
             // Instead of trying one complexity in [lowerBound, upperBound], we will consider a range,
@@ -526,7 +481,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
             // That way, if no form in the range fits, we know the complexity was not high enough
             unsigned int middleComplexityRangeMin,  middleComplexityRangeMax;
 
-            while (upperBound > lowerBound)
+            while (upperBound >= lowerBound)
             {
                 if (upperBound - lowerBound < 5)
                 {
@@ -554,8 +509,9 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
                     }
                     else
                     {
-                        middleComplexityRangeMin = ApproximatorType::getComplexityRangeLowerBound(
-                                    totalNbDimensions, middleComplexityRangeMax);
+                        middleComplexityRangeMin = max(ApproximatorType::getComplexityRangeLowerBound(
+                                                           totalNbDimensions, middleComplexityRangeMax),
+                                                       lowerBound);
                     }
 
                 }
@@ -659,340 +615,308 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
 }
 
 
-// Merges the models with each other, starting with the closest ones:
-// - atomicModels is a list of leaves, or more generally of models that are supposed correctly merged
-// - independentlyMergedModels is a list of models resulting from previous merges
-//   => Those merges may be rolled back because of the new models in atomicModels.
-//      We expect to get the same result with independentlyMergedModels or with the
-//      list of every leaf in independentlyMergedModels
-// - noRollback prevents those rollbacks if set to true
-// - addToExistingModelsOnly prevents atomic models from being merged with each other
-//   before being merged to models in independentlyMergedModels
+// Tries have one model "steal" points (or rather, submodels) from each other:
+// - candidate0 and candidate1 are models containing only one point (leaves)
+// - the top-level model containing candidate0 tries to steal candidate1
+//    or a model that contains it, and vice-versa
+// - we go with the option which leads to the lowest sum of complexities
+// => if point stealing was possible: we return true and the new models
+//    otherwise: we return false and an empty list
 template <typename ApproximatorType>
-std::list<std::shared_ptr<Models::Model<ApproximatorType>>> ModelList<ApproximatorType>::mergeAsMuchAsPossible(
-        std::list<std::shared_ptr<Models::Model<ApproximatorType>>>&& atomicModels,
-        std::list<std::shared_ptr<Models::Model<ApproximatorType>>>&& independentlyMergedModels,
-        bool noRollback,
-        bool addToExistingModelsOnly)
+std::pair<bool, std::list<std::shared_ptr<Models::Model<ApproximatorType>>>>
+ModelList<ApproximatorType>::pointStealing(
+        Models::ModelIterator<ApproximatorType> candidate0,
+        Models::ModelIterator<ApproximatorType> candidate1)
 {
     using std::vector;
     using std::list;
-    using std::deque;
-    using std::priority_queue;
-    using std::set;
-    using std::unordered_set;
+    using std::map;
     using std::pair;
+    using std::make_pair;
     using std::shared_ptr;
     using std::static_pointer_cast;
+    using std::sort;
     using ModelType = Models::Model<ApproximatorType>;
     using NodeType = Models::Node<ApproximatorType>;
-    using ModelPair = pair<shared_ptr<ModelType>,shared_ptr<ModelType>>;
+    using ModelPointer = shared_ptr<ModelType>;
+    //    using ModelIterator = Models::ModelIterator<ApproximatorType>;
 
-    // Special cases
-    if (atomicModels.empty())
+    auto smartTryMerge = [this](
+            vector<ModelPointer> candidateModels)
+            -> ModelPointer
     {
-        // If there is no new model to merge,
-        // all relevant merges were already done when the models were merged independently
-        return independentlyMergedModels;
-    }
-    else if (independentlyMergedModels.empty()
-             && (addToExistingModelsOnly
-                 || (atomicModels.size() == 1)))
-    {
-        // There is nothing to do
-        return atomicModels;
-    }
-
-
-    //
-    // General case
-    //
-
-
-    // Some definitions first
-    bool const markAsTemporary = (noRollback || addToExistingModelsOnly);
-
-    // Candidate models for the merging
-    set<shared_ptr<ModelType>> candidateModels;
-    // Models which have already been merged, or that have been rolled back
-    unordered_set<shared_ptr<ModelType>> unavailable;
-
-    // Nodes in independently merged models and the distances between their children
-    deque<pair<Models::ModelDistance,shared_ptr<ModelType>>> independentMergesInnerDistances;
-    // Candidate pairs of models, and the distances between them
-    priority_queue<pair<Models::ModelDistance, ModelPair>,
-            vector<pair<Models::ModelDistance, ModelPair>>,
-            HasGreaterDistance<ModelPair>> candidateDistances;
-
-
-    // We determine all candidate models for the merging phase,
-    // and initialize candidateDistances as well as independentMergesInnerDistances
-    {
-        // First we consider independently merged models
-        // and determine if we may need to roll back some merges
-        if (noRollback)
+        // Store merge result and use that info whenever possible to avoid computation
+        static map<vector<ModelPointer>, ModelPointer> alreadyComputed;
+        sort(candidateModels.begin(), candidateModels.end());
+        if (alreadyComputed.count(candidateModels) > 0)
         {
-            candidateModels.insert(independentlyMergedModels.begin(), independentlyMergedModels.end());
-            independentlyMergedModels.resize(0);
+            return alreadyComputed.at(candidateModels);
         }
         else
         {
-            // We go down the tree as much as necessary
-            while (!independentlyMergedModels.empty())
+            auto const mergeResult = tryMerge(candidateModels);
+            alreadyComputed.emplace(candidateModels, mergeResult);
+            return mergeResult;
+        }
+    };
+
+    auto getTreeWithoutSubmodel = [this, &smartTryMerge](list<ModelPointer> treeBranch) -> ModelPointer
+    {
+        // - treeBranch is the list containing a model, then its child,
+        //    then this child's child, etc,
+        //    leading to a submodel that we want to remove
+        // - what we remove has to be a submodel,
+        //    which means that treeBranch should contain at least 2 elements
+        vector<ModelPointer> orphans;
+
+        // We determine all orphan submodels
+        // The variable named 'removed' contains the removed submodel at first,
+        //  and contains the top-level model when the loop ends
+        auto removed = treeBranch.back();
+        treeBranch.pop_back();
+
+        do
+        {
+            auto const parent = treeBranch.back();
+            for (auto const& child : static_pointer_cast<NodeType>(parent)->getSubmodels())
             {
-                auto const model = independentlyMergedModels.back();
-                independentlyMergedModels.pop_back();
-
-                bool mayBeUnmerged = false;
-
-                if (!model->isLeaf())
+                if (child != removed)
                 {
-                    auto const asNode = static_pointer_cast<NodeType>(model);
-                    auto const biggestInnerDistance = asNode->getBiggestInnerDistance(outputID);
-
-                    for (auto const& atomic : atomicModels)
-                    {
-                        // If the atomic models are closer to the model than some merged models were to each other,
-                        // we may need to roll back some merges
-                        if (Models::getDistance<ApproximatorType>(model, atomic, outputID) < biggestInnerDistance)
-                        {
-                            auto const& child0 = asNode->getModel0();
-                            auto const& child1 = asNode->getModel1();
-
-                            mayBeUnmerged = true;
-                            auto const innerDistance = Models::getDistance<ApproximatorType>(child0, child1, outputID);
-                            independentMergesInnerDistances.push_back(make_pair(innerDistance, model));
-
-                            independentlyMergedModels.push_back(child0);
-                            independentlyMergedModels.push_back(child1);
-
-                            break;
-                        }
-                    }
+                    orphans.push_back(child);
                 }
-
-                // Otherwise (or if we reached a leaf), we add the model to the set of candidate models
-                if (!mayBeUnmerged)
-                {
-                    candidateModels.insert(model);
-                }
-
             }
+            removed = parent;
+            treeBranch.pop_back();
+        } while (!treeBranch.empty());
 
-            // We sort queue by increasing distances
-            sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(),
-                 pairCompareFirst<Models::ModelDistance, shared_ptr<ModelType>>);
+        // If there is only one, it is now a top-level model and we return it
+        if (orphans.size() == 1)
+        {
+            return orphans.back();
         }
 
-
-        // Then we consider atomic models and compute distances
-        if (addToExistingModelsOnly)
+        // Otherwise we fuse all orphans into one model
+        //  (which has at worst the same form that the former top-level model)
+        vector<pair<unsigned int, UsedDimensions>> topLevelModelCharacteristics;
+        for (auto const& form : removed->getForms())
         {
-            // We compute distances between the independently merged models and the atomic models
-            for (auto cIt = candidateModels.begin(), cEnd = candidateModels.end(); cIt != cEnd; ++cIt)
-            {
-                for (auto aIt = atomicModels.begin(), aEnd = atomicModels.end(); aIt != aEnd; ++aIt)
-                {
-                    candidateDistances.push(
-                                make_pair(
-                                    Models::getDistance<ApproximatorType>(*cIt, *aIt, outputID),
-                                    make_pair(*cIt, *aIt)
-                                    )
-                                );
-                }
-            }
+            topLevelModelCharacteristics.push_back(make_pair(form.complexity, form.usedDimensions));
+        }
 
-            // Then we move atomic models into the candidate models
-            candidateModels.insert(atomicModels.begin(), atomicModels.end());
-            atomicModels.resize(0);
+        auto const newModel = tryMerge(orphans, topLevelModelCharacteristics);
+
+        if (!newModel)
+        {
+            throw std::runtime_error("Orphan submodels could not be merged back into one");
+        }
+
+        return newModel;
+    };
+
+
+    // We initialize some stuff
+    vector<list<ModelPointer>> treeBranches{candidate0.getTreeBranch(), candidate1.getTreeBranch()};
+    vector<ModelPointer> const topModels{treeBranches[0].front(), treeBranches[1].front()};
+    vector<unsigned int> topModelComplexities(2, 0);
+
+    for (unsigned int i = 0; i < 2; ++i)
+    {
+        if (topModels[i]->isLeaf())
+        {
+            topModelComplexities[i] = 1;
         }
         else
         {
-            // We moveadd atomic models to the candidate models
-            candidateModels.insert(atomicModels.begin(), atomicModels.end());
-            atomicModels.resize(0);
-
-            // Then we compute all distances between candidate models
-            for (auto cIt = candidateModels.begin(), cEnd = candidateModels.end(); cIt != cEnd; ++cIt)
+            for (auto const& form : static_pointer_cast<NodeType>(topModels[i])->getForms())
             {
-
-                auto otherIt = cIt; ++otherIt;
-                for (; otherIt != cEnd; ++otherIt)
-                {
-                    candidateDistances.push(
-                                make_pair(
-                                    Models::getDistance<ApproximatorType>(*cIt, *otherIt, outputID),
-                                    make_pair(*cIt, *otherIt)
-                                    )
-                                );
-                }
+                topModelComplexities[i] += form.complexity;
             }
         }
     }
 
+    unsigned int bestComplexity = topModelComplexities[0] + topModelComplexities[1];
+    list<ModelPointer> bestModels;
 
-    // Now that everything is initialized, we go on to do the merges
-    auto minDistCandidates = candidateDistances.top().first;
-
-    Models::ModelDistance minDistIndependent;   // smallest distance between two models
-    Models::ModelDistance supDistIndependent;   // big distance used to put entries at the end when sorting
-
-    if (!independentMergesInnerDistances.empty())
+    // We try to merge the top-level models
     {
-        minDistIndependent = independentMergesInnerDistances.front().first;
-        supDistIndependent = Models::ModelDistance::getBiggerDistanceThan(independentMergesInnerDistances.back().first);
+        auto const newModel = smartTryMerge(topModels);
+        if (newModel)
+        {
+            unsigned int complexity = 0;
+            for (auto const& form : static_pointer_cast<NodeType>(newModel)->getForms())
+            {
+                complexity += form.complexity;
+            }
+
+            if (complexity <= bestComplexity)
+            {
+                bestComplexity = complexity;
+                bestModels = {newModel};
+            }
+        }
     }
 
-    while (!independentMergesInnerDistances.empty() || !candidateDistances.empty())
+    // We try to find if a merge between a top-level model and a submodel could be better
+    for (unsigned int i = 0; i < 2; ++i)
     {
-        // Merges that are not rolled back
-        if (!independentMergesInnerDistances.empty())
+        auto& treeBranch = treeBranches[i];
+        auto const& otherBranchTopModel = topModels[1-i];
+
+        auto subModel = treeBranch.back();
+        treeBranch.pop_back();
+        while (!treeBranch.empty())
         {
-            // We update this because we may have increased minDistIndependent
-            // during the previous iteration if the children nodes of the
-            // first entries were not candidate models
-            minDistIndependent = independentMergesInnerDistances.front().first;
-
-            auto iIt = independentMergesInnerDistances.begin();
-            auto const iEnd = independentMergesInnerDistances.end();
-            unsigned int nbPointsToTruncate = 0;
-
-            bool doneSomething = false;
-
-            while (candidateDistances.empty() || !(minDistCandidates < minDistIndependent))
+            auto const newModel = smartTryMerge(vector<ModelPointer>{otherBranchTopModel, subModel});
+            if (newModel)
             {
-                auto& entryDistance = iIt->first;
-                auto const& mergedModel = iIt->second;
-                auto const asNode = static_pointer_cast<NodeType>(mergedModel);
-                auto const& child0 = asNode->getModel0();
-                auto const& child1 = asNode->getModel1();
-
-                if ((candidateModels.count(child0) > 0) && (candidateModels.count(child1) > 0))
+                unsigned int complexity = 0;
+                for (auto const& form : static_pointer_cast<NodeType>(newModel)->getForms())
                 {
-                    // The merge is validated
-                    candidateModels.erase(child0);
-                    candidateModels.erase(child1);
-                    unavailable.insert(child0);
-                    unavailable.insert(child1);
+                    complexity += form.complexity;
+                }
 
-                    entryDistance = supDistIndependent;
-                    ++nbPointsToTruncate;
+                treeBranch.push_back(subModel);
+                auto const restOfTheBranch = getTreeWithoutSubmodel(treeBranch);
+                treeBranch.pop_back();
 
-                    // The model is added as a candidate model, and distances are added in candidateDistances
-                    for (auto const& model : candidateModels)
-                    {
-                        candidateDistances.push(
-                                    make_pair(
-                                        Models::getDistance<ApproximatorType>(mergedModel, model, outputID),
-                                        make_pair(mergedModel, model)
-                                        )
-                                    );
-                    }
-
-                    candidateModels.insert(mergedModel);
-                    doneSomething = true;
-                    break;
+                if (restOfTheBranch->isLeaf())
+                {
+                    complexity += 1;
                 }
                 else
                 {
-                    if ((unavailable.count(child0) > 0) || (unavailable.count(child1) > 0))
+                    for (auto const& form : static_pointer_cast<NodeType>(restOfTheBranch)->getForms())
                     {
-                        // The merge is definitively rolled back (otherwise it will be decided later)
-                        unavailable.insert(mergedModel);
-
-                        entryDistance = supDistIndependent;
-                        ++nbPointsToTruncate;
-                        doneSomething = true;
+                        complexity += form.complexity;
                     }
+                }
 
-                    ++iIt;
-
-                    if (iIt == iEnd)
-                    {
-                        // End of the queue
-                        break;
-                    }
-
-                    minDistIndependent = iIt->first;
+                if (complexity < bestComplexity)
+                {
+                    bestComplexity = complexity;
+                    bestModels = {newModel, restOfTheBranch};
                 }
             }
-
-            if (doneSomething)
-            {
-                sort(independentMergesInnerDistances.begin(), independentMergesInnerDistances.end(),
-                     pairCompareFirst<Models::ModelDistance, shared_ptr<ModelType>>);
-
-                if (nbPointsToTruncate > 0)
-                {
-                    independentMergesInnerDistances.resize(independentMergesInnerDistances.size() - nbPointsToTruncate);
-                }
-
-                if (!independentMergesInnerDistances.empty())
-                {
-                    minDistIndependent = independentMergesInnerDistances.front().first;
-                    supDistIndependent =
-                            Models::ModelDistance::getBiggerDistanceThan(independentMergesInnerDistances.back().first);
-                }
-            }
+            subModel = treeBranch.back();
+            treeBranch.pop_back();
         }
+    }
+
+    if (bestModels.empty())
+    {
+        // No merge succeeded
+        return {false, {}};
+    }
+    else
+    {
+        return {true, bestModels};
+    }
+}
 
 
-        // New Merges
-        if (!candidateDistances.empty())
+// Merge models as much as possible by having them "steal" points (or rather, submodels) from each other,
+//  starting with the closest pair of submodels
+template <typename ApproximatorType>
+void ModelList<ApproximatorType>::performPointStealing()
+{
+    using std::vector;
+    using std::priority_queue;
+    using std::map;
+    using std::pair;
+    using std::make_pair;
+    using std::shared_ptr;
+    using ModelDistance = Models::ModelDistance;
+    using ModelType = Models::Model<ApproximatorType>;
+    using ModelPointer = shared_ptr<ModelType>;
+    using ModelPointerPair = pair<ModelPointer, ModelPointer>;
+    using ModelIterator = Models::ModelIterator<ApproximatorType>;
+
+    // We compute all distances between pairs of points,
+    //  and map each point to an iterator
+    priority_queue<pair<ModelDistance, ModelPointerPair>,
+            vector<pair<ModelDistance, ModelPointerPair>>,
+            HasGreaterDistance<ModelPointerPair>> distances;
+    map<shared_ptr<ModelType>, ModelIterator> pointToIterator;
+    {
+        auto const mEnd = models.end();
+        for (auto mIt0 = models.begin(); mIt0 != mEnd; ++mIt0)
         {
-            while (!candidateDistances.empty()
-                   && (independentMergesInnerDistances.empty()
-                       || (minDistCandidates < minDistIndependent)))
+            auto const pEnd0 = Models::pointsEnd<ApproximatorType>(*mIt0);
+            for (auto pIt0 = Models::pointsBegin<ApproximatorType>(*mIt0); pIt0 != pEnd0; ++pIt0)
             {
-                auto entry = candidateDistances.top();
-                candidateDistances.pop();
-
-                auto const& candidatePair = entry.second;
-                auto const& model0 = candidatePair.first;
-                auto const& model1 = candidatePair.second;
-
-                if ((unavailable.count(model0) == 0) && (unavailable.count(model1) == 0))
-                {
-                    auto newModel = tryMerge(model0, model1, markAsTemporary);
-
-                    if (newModel)
-                    {
-                        // Successful merge
-                        candidateModels.erase(model0);
-                        candidateModels.erase(model1);
-                        unavailable.insert(model0);
-                        unavailable.insert(model1);
-
-                        // The model is added as a candidate model, and distances are added in candidateDistances
-                        for (auto const& model : candidateModels)
-                        {
-                            candidateDistances.push(
-                                        make_pair(
-                                            Models::getDistance<ApproximatorType>(newModel, model, outputID),
-                                            make_pair(newModel, model)
-                                            )
-                                        );
-                        }
-
-                        candidateModels.insert(newModel);
-                        break;
-                    }
-                }
-
-                minDistCandidates = candidateDistances.top().first;
+                pointToIterator.emplace(pIt0.getTreeBranch().back(), pIt0);
             }
 
-            if (!candidateDistances.empty())
+            auto mIt1 = mIt0; ++mIt1;
+            for (; mIt1 != mEnd; ++mIt1)
             {
-                minDistCandidates = candidateDistances.top().first;
+                auto const pEnd1 = Models::pointsEnd<ApproximatorType>(*mIt1);
+                for (auto pIt0 = Models::pointsBegin<ApproximatorType>(*mIt0); pIt0 != pEnd0; ++pIt0)
+                {
+                    for (auto pIt1 = Models::pointsBegin<ApproximatorType>(*mIt1); pIt1 != pEnd1; ++pIt1)
+                    {
+                        distances.push(
+                                    make_pair(
+                                        ModelDistance(*pIt0, *pIt1, outputID),
+                                        make_pair(pIt0.getTreeBranch().back(),
+                                                  pIt1.getTreeBranch().back()
+                                                  )
+                                        )
+                                    );
+                    }
+                }
             }
         }
     }
 
+    // Now we consider all pairs of points, one by one
+    while (!distances.empty())
+    {
+        // We retrieve the pair from the distance priority queue
+        auto currentPair = distances.top().second;
+        distances.pop();
+        auto const pointIterator0 = pointToIterator.at(currentPair.first);
+        auto const pointIterator1 = pointToIterator.at(currentPair.second);
 
-    // Finally, we put everything in a list and return it
-    return list<shared_ptr<ModelType>>(candidateModels.begin(), candidateModels.end());
+        // We skip cases where both points belong to the same model
+        if (pointIterator0.getTreeBranch().front() == pointIterator1.getTreeBranch().front())
+        {
+            continue;
+        }
+
+        // We call pointStealing() with the points
+        //  and update the models and the map if it succeeds
+        auto pointStealingResult = pointStealing(pointIterator0, pointIterator1);
+        if (pointStealingResult.first)
+        {
+            // We remove the old models
+            {
+                auto const toRemove0 = pointIterator0.getTreeBranch().front();
+                auto const toRemove1 = pointIterator1.getTreeBranch().front();
+
+                removeModel(toRemove0);
+                removeModel(toRemove1);
+            }
+
+            // We add the new models and update the map
+            {
+                for (auto const& newModel : pointStealingResult.second)
+                {
+                    addModel(newModel);
+                    auto const pEnd = Models::pointsEnd<ApproximatorType>(newModel);
+                    for (auto pIt = Models::pointsBegin<ApproximatorType>(newModel);
+                         pIt != pEnd; ++pIt)
+                    {
+                        auto const point = pIt.getTreeBranch().back();
+                        pointToIterator.erase(point);
+                        pointToIterator.emplace(point, pIt);
+                    }
+                }
+            }
+        }
+    }
 }
+
 
 
 }

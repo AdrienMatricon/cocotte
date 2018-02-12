@@ -10,6 +10,7 @@
 //#include <boost/serialization/shared_ptr.hpp>
 #include <opencv2/ml/ml.hpp>
 #include <cocotte/models/models.hh>
+#include <cocotte/useddimensions.h>
 
 
 
@@ -23,7 +24,7 @@ class ModelList final
 
 private:
 
-    // Each model is a binary tree :
+    // Each model is a tree :
     // - each leaf contains a point
     // - each node contains a form of the approximator that explains all points under it
     std::list<std::shared_ptr<Models::Model<ApproximatorType>>> models;
@@ -49,23 +50,14 @@ public:
 
     // Adding and removing models
     void addModel(std::shared_ptr<Models::Model<ApproximatorType>> model);
+    void removeModel(std::shared_ptr<Models::Model<ApproximatorType>> model);
     std::shared_ptr<Models::Model<ApproximatorType>> firstModel();
     void removeFirstModel();
 
     // Creates leaves for the new points and merges them with models or submodels,
-    // starting with the closest ones. We expect to get the same result
-    // when adding points one by one, in batches, or all at once,
-    // except if noRollback (previous merges are kept)
-    // or addToExistingModelsOnly (new leaves merged into old models first) is set to true.
-    // In that case, merging goes faster and new leaves/nodes are marked as temporary
-    void addPoint(std::shared_ptr<DataPoint const> pointAddress, bool noRollback = false);
-    void addPoints(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses,
-                   bool noRollback = false,
-                   bool addToExistingModelsOnly = false);
-
-    // Removes temporary models and add all points in temporary leaves with addPoints()
-    // (with noRollback and addToExistingModelsOnly set to false)
-    void restructureModels();
+    // starting with the closest ones
+    void addPoint(std::shared_ptr<DataPoint const> pointAddress);
+    void addPoints(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses);
 
     // Checks if for each point there exists a model that could predict it
     bool canBePredicted(std::vector<std::shared_ptr<DataPoint const>> const& pointAddresses);
@@ -102,29 +94,30 @@ private:
     };
 
     // Utility function
-    std::shared_ptr<Models::Model<ApproximatorType>> createLeaf(std::shared_ptr<DataPoint const> point, bool markAsTemporary = false);
+    std::shared_ptr<Models::Model<ApproximatorType>> createLeaf(std::shared_ptr<DataPoint const> point);
 
-    // Tries to merge two models into one without increasing complexity
-    // Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+    // - Tries to merge models into one without increasing complexity
+    // - Returns the result if it succeeded, and a default-constructed shared_ptr otherwise
+    // - shouldWork can be set to specify complexities and dimensions that should allow fitting,
+    //    to make sure that a solution will be found
     std::shared_ptr<Models::Model<ApproximatorType>> tryMerge(
-            std::shared_ptr<Models::Model<ApproximatorType>> model0,
-            std::shared_ptr<Models::Model<ApproximatorType>> model1,
-            bool markAsTemporary = false);
+            std::vector<std::shared_ptr<Models::Model<ApproximatorType>>> candidateModels,
+            std::vector<std::pair<unsigned int, UsedDimensions>> const& shouldWork= {});
 
-    // Merges the models with each other, starting with the closest ones:
-    // - atomicModels is a list of leaves, or more generally of models that are supposed correctly merged
-    // - independentlyMergedModels is a list of models resulting from previous merges
-    //   => Those merges may be rolled back because of the new models in atomicModels.
-    //      We expect to get the same result with independentlyMergedModels or with the
-    //      list of every leaf in independentlyMergedModels
-    // - if addingToExistingModelsis set to true:
-    //   => atomicModels will not be merged with each other before being merged with those in independentlyMergedModels
-    //   => no rollback will be done
-    std::list<std::shared_ptr<Models::Model<ApproximatorType>>> mergeAsMuchAsPossible(
-            std::list<std::shared_ptr<Models::Model<ApproximatorType>>>&& atomicModels,
-            std::list<std::shared_ptr<Models::Model<ApproximatorType>>>&& independentlyMergedModels,
-            bool noRollback = false,
-            bool addToExistingModelsOnly = false);
+    // Tries have one model "steal" points (or rather, submodels) from each other:
+    // - candidate0 and candidate1 are models containing only one point (leaves)
+    // - the top-level model containing candidate0 tries to steal candidate1
+    //    or a model that contains it, and vice-versa
+    // - we go with the option which leads to the lowest sum of complexities
+    // => if point stealing was possible: we return true and the new models
+    //    otherwise: we return false and an empty list
+    std::pair<bool, std::list<std::shared_ptr<Models::Model<ApproximatorType>>>> pointStealing(
+            Models::ModelIterator<ApproximatorType> candidate0,
+            Models::ModelIterator<ApproximatorType> candidate1);
+
+    // Merge models as much as possible by having them "steal" points (or rather, submodels) from each other,
+    //  starting with the closest pair of submodels
+    void performPointStealing();
 
 
     // Serialization

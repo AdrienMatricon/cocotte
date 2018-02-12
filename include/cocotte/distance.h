@@ -17,7 +17,8 @@ enum Type
 {
     L_1_XT,
     L_2_SQUARED_XT,
-    CLOSEST_DIM_X
+    CLOSEST_DIM_X,
+    RANDOM
 };
 }
 
@@ -51,6 +52,18 @@ public:
     friend bool operator<(Distance<DistanceType::L_1_XT> const& lhs,
                           Distance<DistanceType::L_1_XT> const& rhs);
 
+    friend bool operator>(Distance<DistanceType::L_1_XT> const& lhs,
+                          Distance<DistanceType::L_1_XT> const& rhs)
+    {return rhs < lhs;}
+
+    friend bool operator<=(Distance<DistanceType::L_1_XT> const& lhs,
+                          Distance<DistanceType::L_1_XT> const& rhs)
+    {return !(rhs < lhs);}
+
+    friend bool operator>=(Distance<DistanceType::L_1_XT> const& lhs,
+                          Distance<DistanceType::L_1_XT> const& rhs)
+    {return !(lhs < rhs);}
+
     // Returns a distance X such that smaller < X
     static Distance<DistanceType::L_1_XT> getBiggerDistanceThan(Distance const& smaller);
 };
@@ -79,6 +92,18 @@ public:
     // Relational operator
     friend bool operator<(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
                           Distance<DistanceType::L_2_SQUARED_XT> const& rhs);
+
+    friend bool operator>(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
+                          Distance<DistanceType::L_2_SQUARED_XT> const& rhs)
+    {return rhs < lhs;}
+
+    friend bool operator<=(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
+                          Distance<DistanceType::L_2_SQUARED_XT> const& rhs)
+    {return !(rhs < lhs);}
+
+    friend bool operator>=(Distance<DistanceType::L_2_SQUARED_XT> const& lhs,
+                          Distance<DistanceType::L_2_SQUARED_XT> const& rhs)
+    {return !(lhs < rhs);}
 
     // Returns a distance X such that smaller < X
     static Distance<DistanceType::L_2_SQUARED_XT> getBiggerDistanceThan(Distance const& smaller);
@@ -110,8 +135,60 @@ public:
     friend bool operator<(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
                           Distance<DistanceType::CLOSEST_DIM_X> const& rhs);
 
+    friend bool operator>(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
+                          Distance<DistanceType::CLOSEST_DIM_X> const& rhs)
+    {return rhs < lhs;}
+
+    friend bool operator<=(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
+                          Distance<DistanceType::CLOSEST_DIM_X> const& rhs)
+    {return !(rhs < lhs);}
+
+    friend bool operator>=(Distance<DistanceType::CLOSEST_DIM_X> const& lhs,
+                          Distance<DistanceType::CLOSEST_DIM_X> const& rhs)
+    {return !(lhs < rhs);}
+
     // Returns a distance X such that smaller < X
     static Distance<DistanceType::CLOSEST_DIM_X> getBiggerDistanceThan(Distance const& smaller);
+};
+
+
+
+////////////////////////
+//////// RANDOM ////////
+////////////////////////
+template <>
+class Distance<DistanceType::RANDOM>
+{
+private:
+    double value;
+
+public:
+    // Constructor
+    Distance(Cocotte::DataPoint const& lhs, Cocotte::DataPoint const& rhs, unsigned int outputID);
+
+    // Default constructor/copy constructor/copy operator
+    Distance() = default;
+    Distance(Distance<DistanceType::RANDOM> const&) = default;
+    Distance<DistanceType::RANDOM>& operator=(Distance<DistanceType::RANDOM> const&) = default;
+
+    // Relational operator
+    friend bool operator<(Distance<DistanceType::RANDOM> const& lhs,
+                          Distance<DistanceType::RANDOM> const& rhs);
+
+    friend bool operator>(Distance<DistanceType::RANDOM> const& lhs,
+                          Distance<DistanceType::RANDOM> const& rhs)
+    {return rhs < lhs;}
+
+    friend bool operator<=(Distance<DistanceType::RANDOM> const& lhs,
+                          Distance<DistanceType::RANDOM> const& rhs)
+    {return !(rhs < lhs);}
+
+    friend bool operator>=(Distance<DistanceType::RANDOM> const& lhs,
+                          Distance<DistanceType::RANDOM> const& rhs)
+    {return !(lhs < rhs);}
+
+    // Returns a distance X such that smaller < X
+    static Distance<DistanceType::RANDOM> getBiggerDistanceThan(Distance const& smaller);
 };
 
 

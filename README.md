@@ -12,6 +12,10 @@ forward-parameterized skills from a set of behaviour examples.
 
 [icdl-epirob-2016]:https://hal.archives-ouvertes.fr/hal-01370820
 
+> *Note:* The current version of this implementation features an improvement on the COCOTTE algorithm,
+> in which the merging phase followed by an artifact removal phase have been replaced by a new merging approach
+> (which we call "point stealing" and in which models merge by stealing submodels from each other to minimize complexity)
+
 ## Before starting
 If you read about COCOTTE in a publication, you may be more interested in the version of COCOTTE
 and its implementation described in this publication than in the latest one.
@@ -197,7 +201,7 @@ and which should be evaluated.
 - Headers for COCOTTE are in `maindirectory/include/cocotte`
 - Link you code with `maindirectory/lib/libcocotte.a`
 - You might find `maindirectory/include/datasources` and `maindirectory/lib/libcocotte.a` useful, as they are headers and binaries for loading data from a data file and a data structure file
-- Do not hesitate to take a look at `maindirectory/src/main.cpp`, which is the code of the COCOTTE executable and which may serve as an example of the use of the COCOTTE library.
+- Do not hesitate to take a look at `maindirectory/src/cocotte.cpp`, which is the code of the COCOTTE executable and which may serve as an example of the use of the COCOTTE library.
 
 #### Data types
 Two data types are defined in `maindirectory/include/cocotte/datatypes.h`:
@@ -218,17 +222,6 @@ Those names are given as vectors, with the same structure as in `Cocotte::DataPo
 
 ##### Adding training points (basic)
 - Training points can be added in any order with `addDataPoint()` and `addDataPoints()`.
-- After adding all training datapoints, call `removeArtifacts()` to eliminate the artifacts of the merging phase.
-- Changes made by `removeArtifacts()` can be rolled back by `restructureModels()`.
-
-##### Adding training points (alternatives)
-- `addDataPointIncremental()` and `addDataPointsIncremental()` do three things successively:
-    * they call `restructureModels()`,
-    * they add new points as if by `addDataPoint()` or `addDataPoints()`,
-    * they call `removeArtifacts()`.
-- `addDataPointNoRollback()` and `addDataPointsNoRollback()` allow you to delay computation:
-    * when called, the new training datapoints are simply used to refine existing models, which is potentially faster than improving the model collection as a whole (which may involve rolling back many merges),
-    * calling `restructureModels()` leaves `Cocotte::Learner` in the same state as if all datapoints were just added with `addDataPoints()`.
 
 ##### Prediction
 The `predict()` function estimates the "outputs" (i.e. `t`) from the "inputs" (i.e. `x`).
@@ -258,6 +251,7 @@ which consists in a [training data file][training], a [test data file][test], an
 [training]:https://raw.githubusercontent.com/AdrienMatricon/data/master/2016-07-12---simulation-data-for-cocotte/training.csv
 [test]:https://github.com/AdrienMatricon/data/raw/master/2016-07-12---simulation-data-for-cocotte/test.csv
 [structure]:https://raw.githubusercontent.com/AdrienMatricon/data/master/2016-07-12---simulation-data-for-cocotte/structure.txt
+
 
 
 
