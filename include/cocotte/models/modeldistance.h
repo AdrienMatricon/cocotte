@@ -9,10 +9,10 @@ namespace Models {
 
 
 
-//using ModelDistance = Distance<DistanceType::L_1_XT>;
+using ModelDistance = Distance<DistanceType::L_1_XT>;
 //using ModelDistance = Distance<DistanceType::L_2_SQUARED_XT>;
 //using ModelDistance = Distance<DistanceType::CLOSEST_DIM_X>;
-using ModelDistance = Distance<DistanceType::RANDOM>;
+//using ModelDistance = Distance<DistanceType::RANDOM>;
 
 
 

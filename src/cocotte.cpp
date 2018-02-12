@@ -184,8 +184,6 @@ int main(int argc, char *argv[])
             showAll = false;
             if (argc >= 6)
             {
-                string mode = "normal";
-
                 string trainingData = argv[2];
                 string dataStructure = argv[3];
                 unsigned int const nbPoints = std::atoi(argv[4]);
@@ -210,18 +208,7 @@ int main(int argc, char *argv[])
                 {
                     cout << "Adding batch " << i + 1 << "/" << nbBatches << ". Computing..."; cout.flush();
 
-                    if (mode == "incremental")
-                    {
-                        learner.addDataPointsIncremental(source.getTrainingDataPoints(nbPointsPerBatch));
-                    }
-                    else if (mode == "no rollback")
-                    {
-                        learner.addDataPointsNoRollback(source.getTrainingDataPoints(nbPointsPerBatch));
-                    }
-                    else
-                    {
-                        learner.addDataPoints(source.getTrainingDataPoints(nbPointsPerBatch));
-                    }
+                    learner.addDataPoints(source.getTrainingDataPoints(nbPointsPerBatch));
 
                     cout << "done." << endl << "Dumping data... "; cout.flush();
                     learner.dumpModels(outputFiles[i]);
@@ -230,27 +217,7 @@ int main(int argc, char *argv[])
 
                 cout << "Adding batch " << nbBatches << "/" << nbBatches << ". Computing..."; cout.flush();
 
-                if (mode == "incremental")
-                {
-                    learner.addDataPointsIncremental(source.getTrainingDataPoints(nbPointsLastBatch));
-                }
-                else if (mode == "no rollback")
-                {
-                    learner.addDataPointsNoRollback(source.getTrainingDataPoints(nbPointsLastBatch));
-                    cout << "done." << endl;
-                    cout << "Restructuring..."; cout.flush();
-                    learner.restructureModels();
-                    cout << "done." << endl;
-                    cout << "Removing artifacts..."; cout.flush();
-                    learner.removeArtifacts();
-                }
-                else
-                {
-                    learner.addDataPoints(source.getTrainingDataPoints(nbPointsLastBatch));
-                    cout << "done." << endl;
-//                    cout << "Removing artifacts..."; cout.flush();
-//                    learner.removeArtifacts();
-                }
+                learner.addDataPoints(source.getTrainingDataPoints(nbPointsLastBatch));
 
                 cout << "done." << endl << endl;
                 cout << learner << endl << endl;

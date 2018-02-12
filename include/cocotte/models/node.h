@@ -29,16 +29,13 @@ private:
     ModelDistance biggestInnerDistance;
     bool alreadyComputed = false;
     std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels;
-    bool temporary;
 
 
 public:
 
     Node() = default;
-    Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels,
-         bool temporary = false);
+    Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels);
     virtual bool isLeaf() const override;
-    virtual bool isTemporary() const override;
     virtual unsigned int getNbPoints() const override;
     ModelDistance getBiggestInnerDistance(unsigned int outputID);  // Biggest distance between merged submodels
     virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() override;
@@ -57,7 +54,6 @@ public:
         archive & node.forms;
         archive & node.nbPoints;
         archive & node.submodels;
-        archive & node.temporary;
     }
 
 };

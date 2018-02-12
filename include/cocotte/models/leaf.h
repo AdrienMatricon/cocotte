@@ -25,16 +25,14 @@ private:
 
     std::vector<Approximators::Form<ApproximatorType>> forms;
     std::shared_ptr<DataPoint const> pointAddress;
-    bool temporary;
 
 
 public:
 
     Leaf() = default;
     Leaf(std::vector<Approximators::Form<ApproximatorType>> const& forms,
-         std::shared_ptr<DataPoint const> pointAddress, bool temporary = false);
+         std::shared_ptr<DataPoint const> pointAddress);
     virtual bool isLeaf() const override;
-    virtual bool isTemporary() const override;
     virtual unsigned int getNbPoints() const override;
     virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() override;
 
@@ -51,7 +49,6 @@ public:
         archive & boost::serialization::base_object<Model<ApproximatorType>>(leaf);
         archive & leaf.forms;
         archive & leaf.pointAddress;
-        archive & leaf.temporary;
     }
 
 };

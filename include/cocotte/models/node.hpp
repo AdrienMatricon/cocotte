@@ -11,9 +11,8 @@ namespace Models {
 
 
 template<typename ApproximatorType>
-Node<ApproximatorType>::Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> sub,
-                             bool temp)
-    : submodels(sub), temporary(temp)
+Node<ApproximatorType>::Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> sub)
+    : submodels(sub)
 {
     nbPoints = 0;
     for (auto const& model : submodels)
@@ -27,13 +26,6 @@ template<typename ApproximatorType>
 bool Node<ApproximatorType>::isLeaf() const
 {
     return false;
-}
-
-
-template<typename ApproximatorType>
-bool Node<ApproximatorType>::isTemporary() const
-{
-    return temporary;
 }
 
 
