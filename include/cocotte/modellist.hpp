@@ -723,7 +723,7 @@ ModelList<ApproximatorType>::pointStealing(
     {
         if (topModels[i]->isLeaf())
         {
-            topModelComplexities[i] = 1;
+            topModelComplexities[i] += nbOutputDims;
         }
         else
         {
