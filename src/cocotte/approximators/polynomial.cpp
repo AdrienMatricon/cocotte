@@ -241,11 +241,6 @@ bool Polynomial::tryFit_implementation(
 
 
     // We determine if we can fit the points
-    if (getNbTerms(nbUsedInputDims, degree) > nbPoints)
-    {
-        return true;
-    }
-
     auto const soplexResult = tryFitSoplex(
                 form, nbPoints, mBegin, mEnd, outputID, dimInOutput);
 
