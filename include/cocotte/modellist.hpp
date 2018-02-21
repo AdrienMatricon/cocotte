@@ -437,7 +437,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         auto fIt = modelForms.begin();
         auto const fEnd = modelForms.end();
 
-        //        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
+//        UsedDimensions formerlyNeededDimensions = UsedDimensions::allDimensions(totalNbDimensions);
         UsedDimensions formerlyNeededDimensions = fIt->neededDimensions;
         UsedDimensions relevantDimensions = fIt->relevantDimensions;
         unsigned int minPossibleComplexity = fIt->complexity;
@@ -703,11 +703,16 @@ ModelList<ApproximatorType>::pointStealing(
             topLevelModelCharacteristics.push_back(make_pair(form.complexity, form.usedDimensions));
         }
 
-        auto const newModel = tryMerge(orphans, topLevelModelCharacteristics);
+        auto newModel = tryMerge(orphans, topLevelModelCharacteristics);
 
         if (!newModel)
         {
-            throw std::runtime_error("Orphan submodels could not be merged back into one");
+            // - This code is supposed to be unreachable because we call tryMerge
+            //    with fewer points than before but allow the same form
+            // - In practice it seems we still reach here sometimes,
+            //    so we handle it by simply keeping the previous form
+            newModel = shared_ptr<ModelType>{new NodeType(orphans)};
+            static_pointer_cast<NodeType>(newModel)->setForms(removed->getForms());
         }
 
         return newModel;
