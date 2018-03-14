@@ -12,7 +12,7 @@ forward-parameterized skills from a set of behaviour examples.
 
 [icdl-epirob-2016]:https://hal.archives-ouvertes.fr/hal-01370820
 
-> *Note:* The current version of this implementation features an improvement on the COCOTTE algorithm,
+> *Note:* The current version of this implementation is actually not COCOTTE but an improved version of the algorithm called COCOTTE+,
 > in which the merging phase followed by an artifact removal phase have been replaced by a new merging approach
 > (which we call "point stealing" and in which models merge by stealing submodels from each other to minimize complexity)
 
