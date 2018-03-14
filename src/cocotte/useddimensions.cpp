@@ -15,16 +15,10 @@ namespace Cocotte {
 
 
 // Constructors
-UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dimensions):
-    nbUsed(dimensions.size()),
-    totalNbDimensions(nbDimensions),
-    dimensionsIds(dimensions)
-{}
-
-UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dimensions, unsigned int used):
-    nbUsed(used),
-    totalNbDimensions(nbDimensions),
-    dimensionsIds(dimensions)
+UsedDimensions::UsedDimensions(unsigned int totalNb, list<unsigned int> ids):
+    nbUsed(ids.size()),
+    totalNbDimensions(totalNb),
+    dimensionsIDs(ids)
 {}
 
 
@@ -32,7 +26,7 @@ UsedDimensions::UsedDimensions(unsigned int nbDimensions, list<unsigned int> dim
 // Main functions
 list<unsigned int> const& UsedDimensions::getIds() const
 {
-    return dimensionsIds;
+    return dimensionsIDs;
 }
 
 
@@ -48,12 +42,31 @@ unsigned int UsedDimensions::getNbUsed() const
 }
 
 
-list<unsigned int> UsedDimensions::unusedDimensionsIds() const
+unsigned int UsedDimensions::getNbUnused() const
 {
-    list<unsigned int> result;
+    return totalNbDimensions - nbUsed;
+}
 
-    auto dIter = dimensionsIds.begin();
-    auto const dEnd = dimensionsIds.end();
+
+// Returns a UsedDimensions using every dimensions
+UsedDimensions UsedDimensions::allDimensions(unsigned int totalNbDimensions)
+{
+    list<unsigned int> IDs;
+    for (unsigned int i = 0u; i < totalNbDimensions; ++i)
+    {
+        IDs.push_back(i);
+    }
+    return UsedDimensions(totalNbDimensions, IDs);
+}
+
+
+// Returns a UsedDimensions using only the unused dimensions
+UsedDimensions UsedDimensions::complement() const
+{
+    list<unsigned int> IDs;
+
+    auto dIter = dimensionsIDs.begin();
+    auto const dEnd = dimensionsIDs.end();
 
     unsigned int i = 0;
 
@@ -69,7 +82,7 @@ list<unsigned int> UsedDimensions::unusedDimensionsIds() const
             }
             else
             {
-                result.push_back(i);
+                IDs.push_back(i);
             }
 
             ++i;
@@ -80,35 +93,15 @@ list<unsigned int> UsedDimensions::unusedDimensionsIds() const
     // We add all remaining dimensions
     for (; i < totalNbDimensions; ++i)
     {
-        result.push_back(i);
+        IDs.push_back(i);
     }
 
-    return result;
-}
-
-
-void UsedDimensions::addDimension(unsigned int id)
-{
-    auto dIter = dimensionsIds.begin();
-    auto dEnd = dimensionsIds.end();
-
-    // We go through the list until we reach its end or find a value above id
-    while ((dIter != dEnd) && (*dIter < id))
-    {
-        ++dIter;
-    }
-
-    // If id is not already in the list, we add it
-    if ((dIter == dEnd) || (*dIter > id))
-    {
-        dimensionsIds.insert(dIter, id);
-        ++nbUsed;
-    }
+    return UsedDimensions(totalNbDimensions, IDs);
 }
 
 
 // Returns a list of combinations of d used dimensions
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) const
+list<UsedDimensions> UsedDimensions::getCombinations(unsigned int d) const
 {
     if (d > nbUsed)
     {
@@ -118,11 +111,11 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) con
     else if (d < 1)
     {
         // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<unsigned int>{}));
+        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions));
     }
 
     // We convert the list to a vector to access it more easily
-    vector<unsigned int> const asVector(dimensionsIds.begin(), dimensionsIds.end());
+    vector<unsigned int> const asVector(dimensionsIDs.begin(), dimensionsIDs.end());
 
 
     // We create a vector of pairs to generate the combination
@@ -156,40 +149,47 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsed(unsigned int d) con
 
     for (auto const& comb:combinations)
     {
-        result.push_back(UsedDimensions(totalNbDimensions, std::get<0>(comb), d));
+        result.push_back(UsedDimensions(totalNbDimensions, std::get<0>(comb)));
     }
 
     return result;
 }
 
 
-// Same but also with combinations of d-1 used dimensions and an unused one
-list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int d) const
+
+// Same but with combinations of d0 used dimensions from ud0 and d1 from ud1
+list<UsedDimensions> UsedDimensions::getMixedCombinations(
+        UsedDimensions const& ud0, unsigned int d0, UsedDimensions const& ud1, unsigned int d1)
 {
-    if ( (d-1) > nbUsed )
+    // Trivial cases
+    if ( (ud0.getNbUsed() < d0)
+         || (ud1.getNbUsed() < d1)
+         || ((ud0 + ud1).getNbUsed() < (d0 + d1)) )
     {
         // No combination works
         return list<UsedDimensions>{};
     }
-    else if (d < 1)
+
+    if (d0 < 1)
     {
-        // Only one combination (nothing) works
-        return list<UsedDimensions>(1, UsedDimensions(totalNbDimensions, list<unsigned int>{}));
+       return ud1.getCombinations(d1);
     }
 
-    auto result = getCombinationsFromUsed(d);
-    auto const partialResult = getCombinationsFromUsed(d-1);
-    auto const complement = unusedDimensionsIds();
-
-
-    for (auto& dim : complement)
+    if (d1 < 1)
     {
-        auto pR = partialResult;
-        for (auto& comb : pR)
-        {
-            comb.addDimension(dim);
-        }
-        result.insert(result.end(), pR.begin(), pR.end());
+        return ud0.getCombinations(d0);
+    }
+
+    // Normal case
+    auto const combinations0 = ud0.getCombinations(d0);
+    auto const combinations1 = ud1.getCombinations(d1);
+
+    list<UsedDimensions> result;
+
+    for (auto const& dims0 : combinations0)
+        for (auto const& dims1 : combinations1)
+    {
+        result.push_back(dims0 + dims1);
     }
 
     return result;
@@ -198,84 +198,86 @@ list<UsedDimensions> UsedDimensions::getCombinationsFromUsedAndOne(unsigned int 
 
 
 // Operators
+
+
+// Union
 UsedDimensions const& UsedDimensions::operator+=(UsedDimensions otherDimensions)
 {
-    auto dIter0 = dimensionsIds.begin(),
-            dIter1 = otherDimensions.dimensionsIds.begin();
-    auto const dEnd1 = otherDimensions.dimensionsIds.end();
+    list<unsigned int> newDimensionsIDs;
 
-    // If one of the list is empty, the union is equal to the other
-    if (dIter0 == dimensionsIds.end())
-    {
-        dimensionsIds = otherDimensions.dimensionsIds;
-        nbUsed = otherDimensions.nbUsed;
-        return *this;
-    }
-    else if (dIter1 == dEnd1)
-    {
-        return *this;
-    }
+    // We iterate over both lists to find common dimension IDs
+    auto dIter0 = dimensionsIDs.begin(),
+            dIter1 = otherDimensions.dimensionsIDs.begin();
+    auto const dEnd0 = dimensionsIDs.end(),
+            dEnd1 = otherDimensions.dimensionsIDs.end();
 
-    // Otherwise, we iterate through both lists
-    auto dim0 = *dIter0, dim1 = *dIter1;
-
-    while (true)
+    // If one of the list is empty, the intersection is empty
+    while ((dIter0 != dEnd0) && (dIter1 != dEnd1))
     {
-        if (dim0 > dim1)
+        auto const dim0 = *dIter0, dim1 = *dIter1;
+        if (dim0 < dim1)
         {
-            // We iterate through the other list until we reach or pass dim0
-            if(++dIter1 == dEnd1)
-            {
-                return *this;
-            }
-            dim1 = *dIter1;
+            newDimensionsIDs.push_back(dim0);
+            ++dIter0;
         }
-        else if (dim0 < dim1)
+        else if (dim0 > dim1)
         {
-            // If we passed dim0, we increment the iterator and to see if dim1 was between both values of dim0
-            // If it is the case, dim1 is not in dimensionsIds and we insert it
-            if (++dIter0 == dimensionsIds.end())
-            {
-                break;
-            }
-
-            dim0 = *dIter0;
-            if (dim0 > dim1)
-            {
-                dimensionsIds.insert(dIter0, dim1);
-                ++nbUsed;
-                if(++dIter1 == dEnd1)
-                {
-                    return *this;
-                }
-
-                dim1 = *dIter1;
-                --dIter0;
-                dim0 = *dIter0;
-            }
+            newDimensionsIDs.push_back(dim1);
+            ++dIter1;
         }
         else
         {
-            // If we simply reached dim0, we increment both iterators
-            if(++dIter1 == dEnd1)
-            {
-                return *this;
-            }
-
-            if (++dIter0 == dimensionsIds.end())
-            {
-                break;
-            }
-
-            dim0 = *dIter0;
-            dim1 = *dIter1;
+            newDimensionsIDs.push_back(dim0);
+            ++dIter0; ++dIter1;
         }
     }
 
-    // We append the remaining dimensions to dimensionsIds
-    dimensionsIds.insert(dIter0, dIter1, dEnd1);
-    nbUsed = dimensionsIds.size();
+    if (dIter0 != dEnd0)
+    {
+        newDimensionsIDs.insert(newDimensionsIDs.end(), dIter0, dEnd0);
+    }
 
+    if (dIter1 != dEnd1)
+    {
+        newDimensionsIDs.insert(newDimensionsIDs.end(), dIter1, dEnd1);
+    }
+
+    *this = UsedDimensions(totalNbDimensions, newDimensionsIDs);
+    return *this;
+}
+
+
+// Intersection
+UsedDimensions const& UsedDimensions::operator^=(UsedDimensions otherDimensions)
+{
+    list<unsigned int> newDimensionsIDs;
+
+    // We iterate over both lists to find common dimension IDs
+    auto dIter0 = dimensionsIDs.begin(),
+            dIter1 = otherDimensions.dimensionsIDs.begin();
+    auto const dEnd0 = dimensionsIDs.end(),
+            dEnd1 = otherDimensions.dimensionsIDs.end();
+
+    // If one of the list is empty, the intersection is empty
+    while ((dIter0 != dEnd0) && (dIter1 != dEnd1))
+    {
+        auto const dim0 = *dIter0, dim1 = *dIter1;
+        if (dim0 < dim1)
+        {
+            ++dIter0;
+        }
+        else if (dim0 > dim1)
+        {
+            ++dIter1;
+        }
+        else
+        {
+            newDimensionsIDs.push_back(dim0);
+            ++dIter0; ++dIter1;
+        }
+    }
+
+    *this = UsedDimensions(totalNbDimensions, newDimensionsIDs);
     return *this;
 }
 

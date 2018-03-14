@@ -52,22 +52,6 @@ public:
     void addDataPoint(DataPoint const& point);
     void addDataPoints(std::vector<DataPoint> const& points);
 
-    // Should be called after adding all points
-    void removeArtifacts();
-
-    // Faster, greedy, the order in which the points are added matters
-    void addDataPointNoRollback(DataPoint const& point);
-    void addDataPointsNoRollback(std::vector<DataPoint> const& points);
-
-    // Makes it as if all points were added with addDataPoints(), then runs removeArtifacts()
-    void restructureModels();
-
-    // For fully incremental learning
-    // Rolls back removeArtifacts(), adds the points,
-    // Then calls removeArtifacts()
-    void addDataPointIncremental(DataPoint const& point);
-    void addDataPointsIncremental(std::vector<DataPoint> const& points);
-
     // Predicts outputs for new points
     std::vector<std::vector<std::vector<double>>> predict(std::vector<std::vector<double>> const& x,
                                                           bool shouldGetModelIDs = false,
@@ -78,6 +62,8 @@ public:
     template<typename Archive>
     friend void serialize(Archive& archive, Learner<ApproximatorType>& learner, const unsigned int version)
     {
+        (void) version; // Unused parameter
+
         archive & learner.inputNames;
         archive & learner.outputNames;
         archive & learner.nbOutputs;

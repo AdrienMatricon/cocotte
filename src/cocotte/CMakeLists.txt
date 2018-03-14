@@ -12,6 +12,9 @@ include_directories(${Boost_INCLUDE_DIRS})
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
+set(GLPK_LIBRARIES glpk)
+set(soplex_LIBRARIES ${CMAKE_BINARY_DIR}/../thirdparty/soplex/lib/libsoplex.a)
+
 add_library(${PROJECT_NAME} ${${PROJECT_NAME}_HEADER} ${${PROJECT_NAME}_SOURCE})
 
-target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES} glpk ${CMAKE_BINARY_DIR}/../thirdparty/soplex/lib/libsoplex.a)
+target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES} ${GLPK_LIBRARIES} ${soplex_LIBRARIES})

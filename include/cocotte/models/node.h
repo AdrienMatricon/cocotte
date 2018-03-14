@@ -8,7 +8,7 @@
 #include <boost/serialization/shared_ptr.hpp>
 #include <boost/serialization/vector.hpp>
 #include <cocotte/datatypes.h>
-#include <cocotte/approximators/form.h>
+#include <cocotte/models/modeldistance.h>
 #include <cocotte/models/model.h>
 
 
@@ -18,43 +18,42 @@ namespace Models {
 
 
 
-class Node : public Model
+template<typename ApproximatorType>
+class Node : public Model<ApproximatorType>
 {
 
 private:
 
-    std::vector<Approximators::Form> forms;
+    std::vector<Approximators::Form<ApproximatorType>> forms;
     unsigned int nbPoints;
-    double biggestInnerDistance = -1.;
-    std::shared_ptr<Model> model0;
-    std::shared_ptr<Model> model1;
-    bool temporary;
+    ModelDistance biggestInnerDistance;
+    bool alreadyComputed = false;
+    std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels;
 
 
 public:
 
     Node() = default;
-    Node(std::shared_ptr<Model> model0, std::shared_ptr<Model> model1, bool temporary = false);
+    Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels);
     virtual bool isLeaf() const override;
-    virtual bool isTemporary() const override;
     virtual unsigned int getNbPoints() const override;
-    double getBiggestInnerDistance(unsigned int outputID);   // Biggest distance between two merged submodels
-    virtual std::vector<Approximators::Form> const& getForms() override;
-    void setForms(std::vector<Approximators::Form> const& forms);
+    ModelDistance getBiggestInnerDistance(unsigned int outputID);  // Biggest distance between merged submodels
+    virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() override;
+    void setForms(std::vector<Approximators::Form<ApproximatorType>> const& forms);
 
-    std::shared_ptr<Model> getModel0() const;
-    std::shared_ptr<Model> getModel1() const;
+    std::vector<std::shared_ptr<Model<ApproximatorType>>> const& getSubmodels() const;
+    std::shared_ptr<Model<ApproximatorType>> getSubmodel(unsigned int i) const;
 
     // Serialization
     template<typename Archive>
     friend void serialize(Archive& archive, Node& node, const unsigned int version)
     {
-        archive & boost::serialization::base_object<Model>(node);
+        (void) version; // Unused parameter
+
+        archive & boost::serialization::base_object<Model<ApproximatorType>>(node);
         archive & node.forms;
         archive & node.nbPoints;
-        archive & node.model0;
-        archive & node.model1;
-        archive & node.temporary;
+        archive & node.submodels;
     }
 
 };
@@ -62,6 +61,8 @@ public:
 
 
 }}
+
+#include <cocotte/models/node.hpp>
 
 
 

@@ -2,6 +2,7 @@
 #define COCOTTE_MODELS_MODELS_HH
 
 
+#include <cocotte/models/modeldistance.h>
 #include <cocotte/models/model.h>
 #include <cocotte/models/leaf.h>
 #include <cocotte/models/node.h>
