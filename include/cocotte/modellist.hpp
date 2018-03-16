@@ -409,6 +409,7 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
     using std::max;
     using std::vector;
     using std::list;
+    using std::map;
     using std::shared_ptr;
     using std::static_pointer_cast;
     using std::const_pointer_cast;
@@ -416,7 +417,17 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
     using ModelType = Models::Model<ApproximatorType>;
     using NodeType = Models::Node<ApproximatorType>;
     using FormType = Approximators::Form<ApproximatorType>;
+    using ModelPointer = shared_ptr<ModelType>;
 
+    // We store merge result and use that info whenever possible to avoid computation
+    static map<vector<ModelPointer>, ModelPointer> alreadyComputed;
+    sort(candidateModels.begin(), candidateModels.end());
+    if (alreadyComputed.count(candidateModels) > 0)
+    {
+        return alreadyComputed.at(candidateModels);
+    }
+
+    // If the result has not already been computed, we compute it
     shared_ptr<ModelType> node (new NodeType(candidateModels));
     unsigned int const nbPoints = node->getNbPoints();
     auto const mBegin = Models::pointsBegin<ApproximatorType>(const_pointer_cast<ModelType const>(node));
@@ -595,6 +606,8 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
         {
             // We never succeeded
             // => we return a default-constructed shared_ptr
+            //    we also store that result to avoid computing it again
+            alreadyComputed.emplace(candidateModels, shared_ptr<ModelType>{});
             return shared_ptr<ModelType>{};
         }
 
@@ -611,6 +624,9 @@ std::shared_ptr<Models::Model<ApproximatorType>> ModelList<ApproximatorType>::tr
     }
 
     static_pointer_cast<NodeType>(node)->setForms(newForms);
+
+    // We store the result and return it
+    alreadyComputed.emplace(candidateModels, node);
     return node;
 }
 
@@ -630,7 +646,6 @@ ModelList<ApproximatorType>::pointStealing(
 {
     using std::vector;
     using std::list;
-    using std::map;
     using std::pair;
     using std::make_pair;
     using std::shared_ptr;
@@ -641,26 +656,7 @@ ModelList<ApproximatorType>::pointStealing(
     using ModelPointer = shared_ptr<ModelType>;
     //    using ModelIterator = Models::ModelIterator<ApproximatorType>;
 
-    auto smartTryMerge = [this](
-            vector<ModelPointer> candidateModels)
-            -> ModelPointer
-    {
-        // Store merge result and use that info whenever possible to avoid computation
-        static map<vector<ModelPointer>, ModelPointer> alreadyComputed;
-        sort(candidateModels.begin(), candidateModels.end());
-        if (alreadyComputed.count(candidateModels) > 0)
-        {
-            return alreadyComputed.at(candidateModels);
-        }
-        else
-        {
-            auto const mergeResult = tryMerge(candidateModels);
-            alreadyComputed.emplace(candidateModels, mergeResult);
-            return mergeResult;
-        }
-    };
-
-    auto getTreeWithoutSubmodel = [this, &smartTryMerge](list<ModelPointer> treeBranch) -> ModelPointer
+    auto getTreeWithoutSubmodel = [this](list<ModelPointer> treeBranch) -> ModelPointer
     {
         // - treeBranch is the list containing a model, then its child,
         //    then this child's child, etc,
@@ -744,7 +740,7 @@ ModelList<ApproximatorType>::pointStealing(
 
     // We try to merge the top-level models
     {
-        auto const newModel = smartTryMerge(topModels);
+        auto const newModel = tryMerge(topModels);
         if (newModel)
         {
             unsigned int complexity = 0;
@@ -771,7 +767,7 @@ ModelList<ApproximatorType>::pointStealing(
         treeBranch.pop_back();
         while (!treeBranch.empty())
         {
-            auto const newModel = smartTryMerge(vector<ModelPointer>{otherBranchTopModel, subModel});
+            auto const newModel = tryMerge(vector<ModelPointer>{otherBranchTopModel, subModel});
             if (newModel)
             {
                 unsigned int complexity = 0;
@@ -883,12 +879,6 @@ void ModelList<ApproximatorType>::performPointStealing()
         auto const pointIterator0 = pointToIterator.at(currentPair.first);
         auto const pointIterator1 = pointToIterator.at(currentPair.second);
 
-        // We skip cases where both points belong to the same model
-        if (pointIterator0.getTreeBranch().front() == pointIterator1.getTreeBranch().front())
-        {
-            continue;
-        }
-
         // We call pointStealing() with the points
         //  and update the models and the map if it succeeds
         auto pointStealingResult = pointStealing(pointIterator0, pointIterator1);
@@ -900,7 +890,11 @@ void ModelList<ApproximatorType>::performPointStealing()
                 auto const toRemove1 = pointIterator1.getTreeBranch().front();
 
                 removeModel(toRemove0);
-                removeModel(toRemove1);
+
+                if (toRemove0 != toRemove1)
+                {
+                    removeModel(toRemove1);
+                }
             }
 
             // We add the new models and update the map
