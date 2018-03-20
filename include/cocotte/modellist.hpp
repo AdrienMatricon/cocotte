@@ -646,160 +646,187 @@ ModelList<ApproximatorType>::pointStealing(
 {
     using std::vector;
     using std::list;
-    using std::pair;
-    using std::make_pair;
     using std::shared_ptr;
     using std::static_pointer_cast;
-    using std::sort;
     using ModelType = Models::Model<ApproximatorType>;
     using NodeType = Models::Node<ApproximatorType>;
     using ModelPointer = shared_ptr<ModelType>;
-    //    using ModelIterator = Models::ModelIterator<ApproximatorType>;
 
-    auto getTreeWithoutSubmodel = [this](list<ModelPointer> treeBranch) -> ModelPointer
+    // TODO: remove useless using calls
+
+    // Utility functions
+
+    // Returns the sum of the complexities of a model over all dimensions
+    auto sumOfComplexities = [this](ModelPointer model) -> unsigned int
     {
-        // - treeBranch is the list containing a model, then its child,
-        //    then this child's child, etc,
-        //    leading to a submodel that we want to remove
-        // - what we remove has to be a submodel,
-        //    which means that treeBranch should contain at least 2 elements
-        vector<ModelPointer> orphans;
+      if (model->isLeaf())
+      {
+          return nbOutputDims;
+      }
 
-        // We determine all orphan submodels
-        // The variable named 'removed' contains the removed submodel at first,
-        //  and contains the top-level model when the loop ends
-        auto removed = treeBranch.back();
-        treeBranch.pop_back();
+      unsigned int sum = 0;
+      for (auto const& form : static_pointer_cast<NodeType>(model)->getForms())
+      {
+          sum += form.complexity;
+      }
+      return sum;
+    };
+
+
+    // Returns the trees we would get if we removed the node removedNode
+    //  from the tree parentNodes.front(), destroying all the nodes above it (parentNodes),
+    //  then replaced the node with the node replacementNode,
+    //  and tried to redo all the merges in the same order
+    // WARNING: this function assumes parentNodes is not empty
+    auto replaceAndRebuildTree = [this](list<ModelPointer> parentNodes, ModelPointer removedNode, ModelPointer replacementNode) -> list<ModelPointer>
+    {
+        list<ModelPointer> result;
 
         do
         {
-            auto const parent = treeBranch.back();
-            for (auto const& child : static_pointer_cast<NodeType>(parent)->getSubmodels())
+            auto directParent = parentNodes.back();
+            parentNodes.pop_back();
+
+            auto children = static_pointer_cast<NodeType>(directParent)->getSubmodels();
+            ModelPointer otherChild = children[0];
+            if (otherChild == removedNode)
             {
-                if (child != removed)
-                {
-                    orphans.push_back(child);
-                }
+                otherChild = children[1];
             }
-            removed = parent;
-            treeBranch.pop_back();
-        } while (!treeBranch.empty());
 
-        // If there is only one, it is now a top-level model and we return it
-        if (orphans.size() == 1)
+            auto newModel = tryMerge({replacementNode, otherChild});
+            if (newModel)
+            {
+                replacementNode = newModel;
+            }
+            else
+            {
+                result.push_back(replacementNode);
+                replacementNode = otherChild;
+            }
+
+            removedNode = directParent;
+
+        } while (!parentNodes.empty());
+
+        result.push_back(replacementNode);
+
+        return result;
+    };
+
+
+    // Returns the trees we would get if we removed the node removedNode
+    //  from the tree parentNodes.front(), destroying all the nodes above it (parentNodes),
+    //  and tried to redo all the merges in the same order
+    // WARNING: this function assumes parentNodes is not empty
+    auto removeAndRebuildTree = [this, &replaceAndRebuildTree](list<ModelPointer> parentNodes, ModelPointer removedNode) -> list<ModelPointer>
+    {
+        auto directParent = parentNodes.back();
+        parentNodes.pop_back();
+
+        auto children = static_pointer_cast<NodeType>(directParent)->getSubmodels();
+        ModelPointer otherChild = children[0];
+        if (otherChild == removedNode)
         {
-            return orphans.back();
+            otherChild = children[1];
         }
 
-        // Otherwise we fuse all orphans into one model
-        //  (which has at worst the same form that the former top-level model)
-        vector<pair<unsigned int, UsedDimensions>> topLevelModelCharacteristics;
-        for (auto const& form : removed->getForms())
-        {
-            topLevelModelCharacteristics.push_back(make_pair(form.complexity, form.usedDimensions));
-        }
-
-        auto newModel = tryMerge(orphans, topLevelModelCharacteristics);
-
-        if (!newModel)
-        {
-            // - This code is supposed to be unreachable because we call tryMerge
-            //    with fewer points than before but allow the same form
-            // - In practice it seems we still reach here sometimes,
-            //    so we handle it by simply keeping the previous form
-            newModel = shared_ptr<ModelType>{new NodeType(orphans)};
-            static_pointer_cast<NodeType>(newModel)->setForms(removed->getForms());
-        }
-
-        return newModel;
+        return replaceAndRebuildTree(parentNodes, directParent, otherChild);
     };
 
 
     // We initialize some stuff
     vector<list<ModelPointer>> treeBranches{candidate0.getTreeBranch(), candidate1.getTreeBranch()};
-    vector<ModelPointer> const topModels{treeBranches[0].front(), treeBranches[1].front()};
-    vector<unsigned int> topModelComplexities(2, 0);
-
-    for (unsigned int i = 0; i < 2; ++i)
-    {
-        if (topModels[i]->isLeaf())
-        {
-            topModelComplexities[i] += nbOutputDims;
-        }
-        else
-        {
-            for (auto const& form : static_pointer_cast<NodeType>(topModels[i])->getForms())
-            {
-                topModelComplexities[i] += form.complexity;
-            }
-        }
-    }
-
-    unsigned int bestComplexity = topModelComplexities[0] + topModelComplexities[1];
+    list<ModelPointer> parentNodes;
+    unsigned int bestComplexity;
     list<ModelPointer> bestModels;
 
-    // We try to merge the top-level models
+    // If the points don't belong to the same tree,
+    //  we consider merging them into one or keeping them separate
+    if (treeBranches[0].front() != treeBranches[1].front())
     {
+        vector<ModelPointer> const topModels{treeBranches[0].front(), treeBranches[1].front()};
+
         auto const newModel = tryMerge(topModels);
         if (newModel)
         {
-            unsigned int complexity = 0;
-            for (auto const& form : static_pointer_cast<NodeType>(newModel)->getForms())
-            {
-                complexity += form.complexity;
-            }
-
-            if (complexity <= bestComplexity)
-            {
-                bestComplexity = complexity;
-                bestModels = {newModel};
-            }
+            bestModels = {newModel};
+            bestComplexity = sumOfComplexities(newModel);
+        }
+        else
+        {
+            bestComplexity = sumOfComplexities(topModels[0]) + sumOfComplexities(topModels[1]);
         }
     }
 
-    // We try to find if a merge between a top-level model and a submodel could be better
+    // Otherwise, i.e. if the points do belong to the same tree,
+    //  we determine where their branches meet and consider both subtrees
+    //  (the trees are binary trees in this implementation of pointStealing)
+    else
+    {
+        while (treeBranches[0].front() == treeBranches[1].front())
+        {
+            parentNodes.push_back(treeBranches[0].front());
+            treeBranches[0].pop_front();
+            treeBranches[1].pop_front();
+        }
+
+        bestComplexity = sumOfComplexities(parentNodes.back());
+    }
+
+    // Now, for the trees we are considering,
+    //  we explore which tree can steal from the other
     for (unsigned int i = 0; i < 2; ++i)
     {
-        auto& treeBranch = treeBranches[i];
-        auto const& otherBranchTopModel = topModels[1-i];
+        auto victimBranch = treeBranches[i];
 
-        auto subModel = treeBranch.back();
-        treeBranch.pop_back();
-        while (!treeBranch.empty())
+        // Then, we explore what node can be stolen
+        while (!victimBranch.empty())
         {
-            auto const newModel = tryMerge(vector<ModelPointer>{otherBranchTopModel, subModel});
-            if (newModel)
+            auto stolenNode = victimBranch.back();
+            victimBranch.pop_back();
+
+            // The node is removed from its tree,
+            //  then the merges are redone in the same order as they were before,
+            //  within the limits of what tryMerge allows
+
+            // In the tree whose node is stolen, within the limits of what tryMerge allows,
+            //  we try to redo the merges in the same order as they were before
+            list<ModelPointer> victimTreeRemains = removeAndRebuildTree(victimBranch, stolenNode);
+
+            // We also explore what node of the thief branch can receive
+            //  the stolen node and be merged with it
+            auto thiefBranch = treeBranches[1-i];
+
+            while (!thiefBranch.empty())
             {
-                unsigned int complexity = 0;
-                for (auto const& form : static_pointer_cast<NodeType>(newModel)->getForms())
-                {
-                    complexity += form.complexity;
-                }
+                auto thiefReceiverNode = thiefBranch.back();
+                thiefBranch.pop_back();
 
-                treeBranch.push_back(subModel);
-                auto const restOfTheBranch = getTreeWithoutSubmodel(treeBranch);
-                treeBranch.pop_back();
+                // We try to do the merge
+                auto const newNode = tryMerge({stolenNode, thiefReceiverNode});
+                if (newNode)
+                {
+                    // In the tree which steals the node, within the limits of what tryMerge allows,
+                    //  we try to redo the merges in the same order as they were before
+                    list<ModelPointer> resultingTrees = replaceAndRebuildTree(thiefBranch, thiefReceiverNode, newNode);
 
-                if (restOfTheBranch->isLeaf())
-                {
-                    complexity += 1;
-                }
-                else
-                {
-                    for (auto const& form : static_pointer_cast<NodeType>(restOfTheBranch)->getForms())
+                    // We concatenate the tree lists and compute the resulting complexity
+                    resultingTrees.insert(resultingTrees.end(), victimTreeRemains.begin(), victimTreeRemains.end());
+                    unsigned int totalComplexity = 0;
+                    for (auto const& tree : resultingTrees)
                     {
-                        complexity += form.complexity;
+                        totalComplexity += sumOfComplexities(tree);
+                    }
+
+                    //  Finally, we determine if stealing points in this fashion allows to reduce complexity
+                    if (totalComplexity < bestComplexity)
+                    {
+                        bestComplexity = totalComplexity;
+                        bestModels = resultingTrees;
                     }
                 }
-
-                if (complexity < bestComplexity)
-                {
-                    bestComplexity = complexity;
-                    bestModels = {newModel, restOfTheBranch};
-                }
             }
-            subModel = treeBranch.back();
-            treeBranch.pop_back();
         }
     }
 
