@@ -731,6 +731,11 @@ ModelList<ApproximatorType>::pointStealing(
             otherChild = children[1];
         }
 
+        if (parentNodes.empty())
+        {
+            return {otherChild};
+        }
+
         return replaceAndRebuildTree(parentNodes, directParent, otherChild);
     };
 
@@ -792,7 +797,12 @@ ModelList<ApproximatorType>::pointStealing(
 
             // In the tree whose node is stolen, within the limits of what tryMerge allows,
             //  we try to redo the merges in the same order as they were before
-            list<ModelPointer> victimTreeRemains = removeAndRebuildTree(victimBranch, stolenNode);
+            list<ModelPointer> victimTreeRemains;
+
+            if (!victimBranch.empty())
+            {
+                victimTreeRemains = removeAndRebuildTree(victimBranch, stolenNode);
+            }
 
             // We also explore what node of the thief branch can receive
             //  the stolen node and be merged with it
@@ -809,10 +819,22 @@ ModelList<ApproximatorType>::pointStealing(
                 {
                     // In the tree which steals the node, within the limits of what tryMerge allows,
                     //  we try to redo the merges in the same order as they were before
-                    list<ModelPointer> resultingTrees = replaceAndRebuildTree(thiefBranch, thiefReceiverNode, newNode);
+                    list<ModelPointer> resultingTrees;
+                    if (thiefBranch.empty())
+                    {
+                        resultingTrees = {newNode};
+                    }
+                    else
+                    {
+                        resultingTrees = replaceAndRebuildTree(thiefBranch, thiefReceiverNode, newNode);
+                    }
 
                     // We concatenate the tree lists and compute the resulting complexity
-                    resultingTrees.insert(resultingTrees.end(), victimTreeRemains.begin(), victimTreeRemains.end());
+                    if (!victimBranch.empty())
+                    {
+                        resultingTrees.insert(resultingTrees.end(), victimTreeRemains.begin(), victimTreeRemains.end());
+                    }
+
                     unsigned int totalComplexity = 0;
                     for (auto const& tree : resultingTrees)
                     {
