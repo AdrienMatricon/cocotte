@@ -859,6 +859,34 @@ ModelList<ApproximatorType>::pointStealing(
     }
     else
     {
+        if (!parentNodes.empty())
+        {
+            if (bestModels.size() == 2)
+            {
+                auto newNode = tryMerge({bestModels.front(), bestModels.back()});
+                if (newNode)
+                {
+                    bestModels = {newNode};
+                }
+            }
+
+            auto const directParent = parentNodes.back();
+            parentNodes.pop_back();
+
+            if (!parentNodes.empty())
+            {
+                if (bestModels.size() == 1)
+                {
+                    bestModels = replaceAndRebuildTree(parentNodes, directParent, bestModels.back());
+                }
+                else
+                {
+                    auto remains = removeAndRebuildTree(parentNodes, directParent);
+                    bestModels.insert(bestModels.end(), remains.begin(), remains.end());
+                }
+            }
+        }
+
         return {true, bestModels};
     }
 }
