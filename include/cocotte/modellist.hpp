@@ -652,25 +652,7 @@ ModelList<ApproximatorType>::pointStealing(
     using NodeType = Models::Node<ApproximatorType>;
     using ModelPointer = shared_ptr<ModelType>;
 
-    // TODO: remove useless using calls
-
     // Utility functions
-
-    // Returns the sum of the complexities of a model over all dimensions
-    auto sumOfComplexities = [this](ModelPointer model) -> unsigned int
-    {
-      if (model->isLeaf())
-      {
-          return nbOutputDims;
-      }
-
-      unsigned int sum = 0;
-      for (auto const& form : static_pointer_cast<NodeType>(model)->getForms())
-      {
-          sum += form.complexity;
-      }
-      return sum;
-    };
 
 
     // Returns the trees we would get if we removed the node removedNode
@@ -756,11 +738,12 @@ ModelList<ApproximatorType>::pointStealing(
         if (newModel)
         {
             bestModels = {newModel};
-            bestComplexity = sumOfComplexities(newModel);
+            bestComplexity = newModel->getSumOfComplexities(nbOutputDims);
         }
         else
         {
-            bestComplexity = sumOfComplexities(topModels[0]) + sumOfComplexities(topModels[1]);
+            bestComplexity = topModels[0]->getSumOfComplexities(nbOutputDims)
+                    + topModels[1]->getSumOfComplexities(nbOutputDims);
         }
     }
 
@@ -776,7 +759,7 @@ ModelList<ApproximatorType>::pointStealing(
             treeBranches[1].pop_front();
         }
 
-        bestComplexity = sumOfComplexities(parentNodes.back());
+        bestComplexity = parentNodes.back()->getSumOfComplexities(nbOutputDims);
     }
 
     // Now, for the trees we are considering,
@@ -838,7 +821,7 @@ ModelList<ApproximatorType>::pointStealing(
                     unsigned int totalComplexity = 0;
                     for (auto const& tree : resultingTrees)
                     {
-                        totalComplexity += sumOfComplexities(tree);
+                        totalComplexity += tree->getSumOfComplexities(nbOutputDims);
                     }
 
                     //  Finally, we determine if stealing points in this fashion allows to reduce complexity
