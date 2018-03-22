@@ -20,6 +20,7 @@ public:
 
     virtual bool isLeaf() const = 0;
     virtual unsigned int getNbPoints() const = 0;
+    virtual unsigned int getSumOfComplexities(unsigned int nbOutputDims) const = 0;
     virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() = 0;
     virtual ~Model(){}
 

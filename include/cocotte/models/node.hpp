@@ -37,6 +37,20 @@ unsigned int Node<ApproximatorType>::getNbPoints() const
 
 
 template<typename ApproximatorType>
+unsigned int Node<ApproximatorType>::getSumOfComplexities(unsigned int nbOutputDims) const
+{
+    (void) nbOutputDims;
+
+    unsigned int sum = 0u;
+    for (auto const& form : forms)
+    {
+        sum += form.complexity;
+    }
+    return sum;
+}
+
+
+template<typename ApproximatorType>
 ModelDistance Node<ApproximatorType>::getBiggestInnerDistance(unsigned int outputID)
 {
     using std::vector;

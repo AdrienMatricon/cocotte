@@ -34,6 +34,7 @@ public:
          std::shared_ptr<DataPoint const> pointAddress);
     virtual bool isLeaf() const override;
     virtual unsigned int getNbPoints() const override;
+    virtual unsigned int getSumOfComplexities(unsigned int nbOutputDims) const override;
     virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() override;
 
     DataPoint const& getPoint();

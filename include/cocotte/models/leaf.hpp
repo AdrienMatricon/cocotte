@@ -30,6 +30,13 @@ unsigned int Leaf<ApproximatorType>::getNbPoints() const
 
 
 template<typename ApproximatorType>
+unsigned int Leaf<ApproximatorType>::getSumOfComplexities(unsigned int nbOutputDims) const
+{
+    return nbOutputDims;
+}
+
+
+template<typename ApproximatorType>
 std::vector<Approximators::Form<ApproximatorType>> const& Leaf<ApproximatorType>::getForms()
 {
     return forms;

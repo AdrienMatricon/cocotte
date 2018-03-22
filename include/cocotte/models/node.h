@@ -37,6 +37,7 @@ public:
     Node(std::vector<std::shared_ptr<Model<ApproximatorType>>> submodels);
     virtual bool isLeaf() const override;
     virtual unsigned int getNbPoints() const override;
+    virtual unsigned int getSumOfComplexities(unsigned int nbOutputDims) const override;
     ModelDistance getBiggestInnerDistance(unsigned int outputID);  // Biggest distance between merged submodels
     virtual std::vector<Approximators::Form<ApproximatorType>> const& getForms() override;
     void setForms(std::vector<Approximators::Form<ApproximatorType>> const& forms);
